@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
@@ -6,51 +6,137 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [text, setText] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [voice, setVoice] = useState("female");
+  const [isLoading, setIsLoading] = useState(false);
+  const [voice, setVoice] = useState("9BWtsMINqrJLrRacOk9x"); // Aria
   const [speed, setSpeed] = useState([1.0]);
   const [pitch, setPitch] = useState([1.0]);
   const [volume, setVolume] = useState([0.8]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const maxChars = 5000;
   const charCount = text.length;
 
-  const handlePlay = () => {
+  // Voice ID mapping
+  const voiceMap: Record<string, string> = {
+    "aria": "9BWtsMINqrJLrRacOk9x",
+    "roger": "CwhRBWXzGAHq8TQ4Fs17",
+    "sarah": "EXAVITQu4vr4xnSDxMaL",
+    "laura": "FGY2WhTYpPnrIDTdsKH5",
+    "charlie": "IKne3meq5aSn9XLyUdCD",
+    "george": "JBFqnCBsd6RMkjVDRZzb",
+  };
+
+  const handlePlay = async () => {
     if (!text.trim()) {
       toast.error("Please enter some text first");
       return;
     }
-    setIsPlaying(true);
-    setIsPaused(false);
-    toast.success("Playing your text...");
+
+    try {
+      setIsLoading(true);
+      toast.loading("Generating speech...");
+
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: {
+          text: text,
+          voiceId: voice,
+          speed: speed[0],
+          pitch: pitch[0],
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.audioContent) {
+        // Clean up previous audio URL
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+        }
+
+        // Convert base64 to blob and create URL
+        const audioData = atob(data.audioContent);
+        const arrayBuffer = new Uint8Array(audioData.length);
+        for (let i = 0; i < audioData.length; i++) {
+          arrayBuffer[i] = audioData.charCodeAt(i);
+        }
+        const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+
+        // Create and play audio
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        const audio = new Audio(url);
+        audio.volume = volume[0];
+        audioRef.current = audio;
+
+        audio.onended = () => {
+          setIsPlaying(false);
+          setIsPaused(false);
+        };
+
+        await audio.play();
+        setIsPlaying(true);
+        setIsPaused(false);
+        toast.dismiss();
+        toast.success("Playing your text!");
+      }
+    } catch (error) {
+      console.error('Error generating speech:', error);
+      toast.dismiss();
+      toast.error("Failed to generate speech. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePause = () => {
-    setIsPaused(true);
-    toast.info("Paused");
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPaused(true);
+      toast.info("Paused");
+    }
   };
 
   const handleResume = () => {
-    setIsPaused(false);
-    toast.success("Resumed");
+    if (audioRef.current) {
+      audioRef.current.play();
+      setIsPaused(false);
+      toast.success("Resumed");
+    }
   };
 
   const handleStop = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     setIsPlaying(false);
     setIsPaused(false);
     toast.info("Stopped");
   };
 
   const handleDownload = () => {
-    if (!text.trim()) {
-      toast.error("Please enter some text first");
+    if (!audioUrl) {
+      toast.error("Please generate speech first");
       return;
     }
-    toast.success("Download will be available soon!");
+    
+    const a = document.createElement('a');
+    a.href = audioUrl;
+    a.download = 'speech.mp3';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast.success("Download started!");
   };
 
   const handleCopy = () => {
@@ -112,14 +198,12 @@ const Index = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl glass-card border-border/50">
-                <SelectItem value="male">🎙️ Male Voice</SelectItem>
-                <SelectItem value="female">👩 Female Voice</SelectItem>
-                <SelectItem value="en-us">🌐 English (US)</SelectItem>
-                <SelectItem value="en-uk">🌐 English (UK)</SelectItem>
-                <SelectItem value="es">🌐 Spanish</SelectItem>
-                <SelectItem value="fr">🌐 French</SelectItem>
-                <SelectItem value="de">🌐 German</SelectItem>
-                <SelectItem value="ja">🌐 Japanese</SelectItem>
+                <SelectItem value="9BWtsMINqrJLrRacOk9x">👩 Aria (Female)</SelectItem>
+                <SelectItem value="CwhRBWXzGAHq8TQ4Fs17">🎙️ Roger (Male)</SelectItem>
+                <SelectItem value="EXAVITQu4vr4xnSDxMaL">👩 Sarah (Female)</SelectItem>
+                <SelectItem value="FGY2WhTYpPnrIDTdsKH5">👩 Laura (Female)</SelectItem>
+                <SelectItem value="IKne3meq5aSn9XLyUdCD">🎙️ Callum (Male)</SelectItem>
+                <SelectItem value="JBFqnCBsd6RMkjVDRZzb">🎙️ George (Male)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -198,6 +282,7 @@ const Index = () => {
                 variant="control"
                 size="controlLg"
                 className="shadow-xl"
+                disabled={isLoading}
               >
                 <Play className="w-6 h-6 fill-current" />
               </Button>

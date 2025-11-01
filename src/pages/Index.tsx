@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
@@ -8,12 +8,27 @@ import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge } from "lucide
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+interface Voice {
+  voice_id: string;
+  name: string;
+  labels?: {
+    accent?: string;
+    description?: string;
+    age?: string;
+    gender?: string;
+    use_case?: string;
+  };
+  preview_url?: string;
+}
+
 const Index = () => {
   const [text, setText] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(true);
   const [voice, setVoice] = useState("9BWtsMINqrJLrRacOk9x"); // Aria
+  const [availableVoices, setAvailableVoices] = useState<Voice[]>([]);
   const [speed, setSpeed] = useState([1.0]);
   const [pitch, setPitch] = useState([1.0]);
   const [volume, setVolume] = useState([0.8]);
@@ -23,14 +38,56 @@ const Index = () => {
   const maxChars = 5000;
   const charCount = text.length;
 
-  // Voice ID mapping
-  const voiceMap: Record<string, string> = {
-    "aria": "9BWtsMINqrJLrRacOk9x",
-    "roger": "CwhRBWXzGAHq8TQ4Fs17",
-    "sarah": "EXAVITQu4vr4xnSDxMaL",
-    "laura": "FGY2WhTYpPnrIDTdsKH5",
-    "charlie": "IKne3meq5aSn9XLyUdCD",
-    "george": "JBFqnCBsd6RMkjVDRZzb",
+  // Load available voices on mount
+  useEffect(() => {
+    const loadVoices = async () => {
+      try {
+        setIsLoadingVoices(true);
+        const { data, error } = await supabase.functions.invoke('get-voices');
+        
+        if (error) {
+          console.error('Error loading voices:', error);
+          toast.error("Failed to load voices");
+          return;
+        }
+
+        if (data?.voices && Array.isArray(data.voices)) {
+          setAvailableVoices(data.voices);
+          console.log('Loaded voices:', data.voices.length);
+        }
+      } catch (error) {
+        console.error('Error loading voices:', error);
+      } finally {
+        setIsLoadingVoices(false);
+      }
+    };
+
+    loadVoices();
+  }, []);
+
+  const getVoiceLabel = (voice: Voice) => {
+    const parts = [voice.name];
+    
+    if (voice.labels?.gender) {
+      parts.push(`${voice.labels.gender}`);
+    }
+    
+    if (voice.labels?.accent) {
+      parts.push(`${voice.labels.accent}`);
+    }
+    
+    if (voice.labels?.age) {
+      parts.push(`${voice.labels.age}`);
+    }
+    
+    return parts.join(' • ');
+  };
+
+  const getVoiceIcon = (voice: Voice) => {
+    const gender = voice.labels?.gender?.toLowerCase();
+    if (gender === 'male') return '🎙️';
+    if (gender === 'female') return '👩';
+    return '🌐';
   };
 
   const handlePlay = async () => {
@@ -191,19 +248,24 @@ const Index = () => {
           <div className="mb-8">
             <label className="text-sm font-medium mb-3 block flex items-center gap-2">
               <Mic className="w-4 h-4" />
-              Select Voice
+              Select Voice {isLoadingVoices && <span className="text-xs text-muted-foreground">(Loading...)</span>}
             </label>
-            <Select value={voice} onValueChange={setVoice}>
+            <Select value={voice} onValueChange={setVoice} disabled={isLoadingVoices}>
               <SelectTrigger className="rounded-xl glass-card border-border/50 h-12">
-                <SelectValue />
+                <SelectValue placeholder="Choose a voice..." />
               </SelectTrigger>
-              <SelectContent className="rounded-xl glass-card border-border/50">
-                <SelectItem value="9BWtsMINqrJLrRacOk9x">👩 Aria (Female)</SelectItem>
-                <SelectItem value="CwhRBWXzGAHq8TQ4Fs17">🎙️ Roger (Male)</SelectItem>
-                <SelectItem value="EXAVITQu4vr4xnSDxMaL">👩 Sarah (Female)</SelectItem>
-                <SelectItem value="FGY2WhTYpPnrIDTdsKH5">👩 Laura (Female)</SelectItem>
-                <SelectItem value="IKne3meq5aSn9XLyUdCD">🎙️ Callum (Male)</SelectItem>
-                <SelectItem value="JBFqnCBsd6RMkjVDRZzb">🎙️ George (Male)</SelectItem>
+              <SelectContent className="rounded-xl glass-card border-border/50 max-h-[400px]">
+                {availableVoices.length > 0 ? (
+                  availableVoices.map((v) => (
+                    <SelectItem key={v.voice_id} value={v.voice_id}>
+                      {getVoiceIcon(v)} {getVoiceLabel(v)}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="loading" disabled>
+                    Loading voices...
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

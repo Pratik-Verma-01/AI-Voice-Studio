@@ -23,6 +23,7 @@ export type Database = {
           speed: number | null
           text: string
           type: string
+          user_id: string | null
           voice_id: string
           voice_name: string | null
         }
@@ -34,6 +35,7 @@ export type Database = {
           speed?: number | null
           text: string
           type?: string
+          user_id?: string | null
           voice_id: string
           voice_name?: string | null
         }
@@ -45,6 +47,7 @@ export type Database = {
           speed?: number | null
           text?: string
           type?: string
+          user_id?: string | null
           voice_id?: string
           voice_name?: string | null
         }

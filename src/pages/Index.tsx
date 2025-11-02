@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
@@ -6,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, Menu, History, Loader2, Upload, FileAudio } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, Menu, History, Loader2, Upload, FileAudio, LogOut } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface Voice {
   voice_id: string;
@@ -43,6 +45,8 @@ interface VoiceHistoryItem {
 }
 
 const Index = () => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [text, setText] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -70,6 +74,27 @@ const Index = () => {
 
   const maxChars = 5000;
   const charCount = text.length;
+
+  // Check authentication
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setUser(session.user);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setUser(session.user);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   // Load available voices on mount
   useEffect(() => {
@@ -238,6 +263,7 @@ const Index = () => {
             speed: speed[0],
             pitch: pitch[0],
             type: 'tts',
+            user_id: user?.id,
           });
 
         if (saveError) {
@@ -396,6 +422,7 @@ const Index = () => {
           speed: 1.0,
           pitch: 1.0,
           type: 'stt',
+          user_id: user?.id,
         });
 
       if (saveError) {
@@ -484,6 +511,7 @@ const Index = () => {
           speed: 1.0,
           pitch: 1.0,
           type: 'stt',
+          user_id: user?.id,
         });
 
       if (saveError) {
@@ -503,9 +531,22 @@ const Index = () => {
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+    toast.success("Logged out successfully");
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
       <ThemeToggle />
+      
+      {/* Logout Button */}
+      <div className="absolute top-4 right-20 z-20">
+        <Button variant="outline" size="icon" className="rounded-full glass-card" onClick={handleLogout}>
+          <LogOut className="w-5 h-5" />
+        </Button>
+      </div>
       
       {/* Menu Button */}
       <div className="absolute top-4 left-4 z-20">

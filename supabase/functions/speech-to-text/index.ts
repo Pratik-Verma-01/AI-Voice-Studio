@@ -19,6 +19,17 @@ serve(async (req) => {
       throw new Error('No audio file provided');
     }
 
+    // Input validation
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (audioFile.size > maxSize) {
+      throw new Error('Audio file must be less than 10MB');
+    }
+
+    const allowedTypes = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav'];
+    if (!allowedTypes.includes(audioFile.type)) {
+      throw new Error('Invalid audio file type');
+    }
+
     const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY not configured');

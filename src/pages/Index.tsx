@@ -65,6 +65,8 @@ const Index = () => {
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const maxChars = 5000;
   const charCount = text.length;
@@ -413,6 +415,91 @@ const Index = () => {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await processAudioBlob(audioBlob);
+        
+        // Stop all tracks to release the microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.success("Recording started!");
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error("Failed to access microphone. Please check permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      toast.info("Recording stopped, processing...");
+    }
+  };
+
+  const processAudioBlob = async (audioBlob: Blob) => {
+    try {
+      setIsProcessingAudio(true);
+      toast.loading("Transcribing audio...");
+
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+
+      const { data, error } = await supabase.functions.invoke('speech-to-text', {
+        body: formData,
+      });
+
+      if (error) throw error;
+
+      const transcribedText = data.text || '';
+      setTranscribedText(transcribedText);
+
+      // Save to history
+      const { error: saveError } = await supabase
+        .from('voice_history')
+        .insert({
+          text: transcribedText,
+          voice_id: '',
+          voice_name: null,
+          audio_url: '',
+          speed: 1.0,
+          pitch: 1.0,
+          type: 'stt',
+        });
+
+      if (saveError) {
+        console.error('Error saving to history:', saveError);
+      } else {
+        loadHistory();
+      }
+
+      toast.dismiss();
+      toast.success("Audio transcribed successfully!");
+    } catch (error) {
+      console.error('Error transcribing audio:', error);
+      toast.dismiss();
+      toast.error("Failed to transcribe audio. Please try again.");
+    } finally {
+      setIsProcessingAudio(false);
     }
   };
 
@@ -772,38 +859,70 @@ const Index = () => {
             </TabsContent>
 
             <TabsContent value="stt" className="mt-0">
-              <div className="mb-6">
-                <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-                  <FileAudio className="w-4 h-4" />
-                  Upload Audio File
-                </label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="audio-upload"
-                />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="outline"
-                  className="w-full rounded-xl glass-card border-border/50 h-32"
-                  disabled={isProcessingAudio}
-                >
-                  {isProcessingAudio ? (
-                    <>
-                      <Loader2 className="w-8 h-8 mr-3 animate-spin" />
-                      Processing Audio...
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <Upload className="w-8 h-8" />
-                      <span>Click to upload audio file</span>
-                      <span className="text-xs text-muted-foreground">Supported formats: MP3, WAV, etc.</span>
-                    </div>
-                  )}
-                </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Direct Recording */}
+                <div>
+                  <label className="text-sm font-medium mb-3 block flex items-center gap-2">
+                    <Mic className="w-4 h-4" />
+                    Record Voice
+                  </label>
+                  <Button
+                    onClick={isRecording ? stopRecording : startRecording}
+                    variant={isRecording ? "destructive" : "default"}
+                    className="w-full rounded-xl h-32"
+                    disabled={isProcessingAudio}
+                  >
+                    {isRecording ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                          <Mic className="w-6 h-6" />
+                        </div>
+                        <span>Recording... Click to stop</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <Mic className="w-8 h-8" />
+                        <span>Click to record</span>
+                        <span className="text-xs opacity-80">Use your microphone</span>
+                      </div>
+                    )}
+                  </Button>
+                </div>
+
+                {/* File Upload */}
+                <div>
+                  <label className="text-sm font-medium mb-3 block flex items-center gap-2">
+                    <FileAudio className="w-4 h-4" />
+                    Upload Audio File
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="audio-upload"
+                  />
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="outline"
+                    className="w-full rounded-xl glass-card border-border/50 h-32"
+                    disabled={isProcessingAudio || isRecording}
+                  >
+                    {isProcessingAudio ? (
+                      <>
+                        <Loader2 className="w-8 h-8 mr-3 animate-spin" />
+                        Processing Audio...
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <Upload className="w-8 h-8" />
+                        <span>Click to upload</span>
+                        <span className="text-xs text-muted-foreground">MP3, WAV, etc.</span>
+                      </div>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               {transcribedText && (

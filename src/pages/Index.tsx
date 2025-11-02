@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import FloatingChat from "@/components/FloatingChat";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -934,6 +935,7 @@ const Index = () => {
           </p>
         </footer>
       </main>
+      <FloatingChat session={session} />
     </div>
   );
 };

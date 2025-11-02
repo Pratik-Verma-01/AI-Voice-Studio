@@ -859,97 +859,20 @@ const Index = () => {
             </TabsContent>
 
             <TabsContent value="stt" className="mt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Direct Recording */}
-                <div>
-                  <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-                    <Mic className="w-4 h-4" />
-                    Record Voice
-                  </label>
-                  <Button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    variant={isRecording ? "destructive" : "default"}
-                    className="w-full rounded-xl h-32"
-                    disabled={isProcessingAudio}
-                  >
-                    {isRecording ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
-                          <Mic className="w-6 h-6" />
-                        </div>
-                        <span>Recording... Click to stop</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Mic className="w-8 h-8" />
-                        <span>Click to record</span>
-                        <span className="text-xs opacity-80">Use your microphone</span>
-                      </div>
-                    )}
-                  </Button>
-                </div>
-
-                {/* File Upload */}
-                <div>
-                  <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-                    <FileAudio className="w-4 h-4" />
-                    Upload Audio File
-                  </label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="audio-upload"
-                  />
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    variant="outline"
-                    className="w-full rounded-xl glass-card border-border/50 h-32"
-                    disabled={isProcessingAudio || isRecording}
-                  >
-                    {isProcessingAudio ? (
-                      <>
-                        <Loader2 className="w-8 h-8 mr-3 animate-spin" />
-                        Processing Audio...
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Upload className="w-8 h-8" />
-                        <span>Click to upload</span>
-                        <span className="text-xs text-muted-foreground">MP3, WAV, etc.</span>
-                      </div>
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {transcribedText && (
-                <div className="mb-6">
-                  <label className="text-sm font-medium mb-3 block">
-                    Transcribed Text
-                  </label>
-                  <Textarea
-                    value={transcribedText}
-                    readOnly
-                    className="min-h-[200px] text-base rounded-2xl glass-card border-border/50 resize-none"
-                  />
-                  <div className="flex gap-3 mt-4">
-                    <Button
-                      onClick={() => {
-                        navigator.clipboard.writeText(transcribedText);
-                        toast.success("Text copied to clipboard!");
-                      }}
-                      variant="outline"
-                      className="rounded-full glass-card"
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copy Text
-                    </Button>
+              <div className="flex flex-col items-center justify-center py-20 px-6">
+                <div className="glass-card rounded-2xl p-12 max-w-md text-center">
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                    <Mic className="w-10 h-10 text-primary" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-3">Speech-to-Text</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Convert your voice recordings and audio files into text
+                  </p>
+                  <div className="inline-block px-6 py-3 bg-gradient-to-r from-primary to-secondary rounded-full text-sm font-medium">
+                    Coming Soon
                   </div>
                 </div>
-              )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>

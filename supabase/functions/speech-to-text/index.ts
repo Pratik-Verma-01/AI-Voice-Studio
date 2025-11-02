@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -18,36 +19,38 @@ serve(async (req) => {
       throw new Error('No audio file provided');
     }
 
-    const apiKey = '5dDRzw9257GKPGabIJpruWs2P8V0Y8lA';
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY not configured');
+    }
 
-    // Create form data for Speechmatic API
-    const speechmaticFormData = new FormData();
-    speechmaticFormData.append('audio', audioFile);
-    speechmaticFormData.append('model', 'whisper-large-v3');
+    // Create form data for OpenAI Whisper API
+    const openAIFormData = new FormData();
+    openAIFormData.append('file', audioFile);
+    openAIFormData.append('model', 'whisper-1');
 
-    console.log('Calling Speechmatic API for speech-to-text...');
+    console.log('Calling OpenAI Whisper API for speech-to-text...');
 
-    const response = await fetch('https://api.speechmatics.com/v2/transcriptions', {
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
       },
-      body: speechmaticFormData,
+      body: openAIFormData,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Speechmatic API error:', errorText);
-      throw new Error(`Speechmatic API error: ${response.status} - ${errorText}`);
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
-    console.log('Speechmatic API response received');
+    console.log('OpenAI Whisper API response received');
 
     return new Response(
       JSON.stringify({ 
-        text: result.results?.transcripts?.[0]?.transcript || result.text || '',
-        fullResponse: result 
+        text: result.text || '',
       }),
       { 
         headers: { 

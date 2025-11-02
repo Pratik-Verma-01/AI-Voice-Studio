@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -72,6 +72,43 @@ const Index = () => {
     loadVoices();
   }, []);
 
+  // Language code to full name mapping
+  const getLanguageFullName = (code: string): string => {
+    const languageMap: Record<string, string> = {
+      'en': 'English',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+      'pl': 'Polish',
+      'nl': 'Dutch',
+      'ja': 'Japanese',
+      'zh': 'Chinese',
+      'ko': 'Korean',
+      'hi': 'Hindi',
+      'ar': 'Arabic',
+      'ru': 'Russian',
+      'tr': 'Turkish',
+      'sv': 'Swedish',
+      'da': 'Danish',
+      'fi': 'Finnish',
+      'no': 'Norwegian',
+      'cs': 'Czech',
+      'ro': 'Romanian',
+      'uk': 'Ukrainian',
+      'el': 'Greek',
+      'bg': 'Bulgarian',
+      'hr': 'Croatian',
+      'sk': 'Slovak',
+      'ta': 'Tamil',
+      'id': 'Indonesian',
+      'ms': 'Malay',
+      'fil': 'Filipino',
+    };
+    return languageMap[code] || code.toUpperCase();
+  };
+
   // Get unique languages from verified_languages array
   const availableLanguages = Array.from(
     new Set(
@@ -89,37 +126,16 @@ const Index = () => {
       );
 
   const getVoiceLabel = (voice: Voice) => {
-    const parts = [voice.name];
-    
-    // Get unique languages from verified_languages
-    const languages = Array.from(
-      new Set(voice.verified_languages?.map(vl => vl.language) || [])
-    );
-    
-    if (languages.length > 0) {
-      parts.push(languages.slice(0, 3).join(', ') + (languages.length > 3 ? '...' : ''));
-    }
-    
-    if (voice.labels?.gender) {
-      parts.push(`${voice.labels.gender}`);
-    }
-    
-    if (voice.labels?.accent) {
-      parts.push(`${voice.labels.accent}`);
-    }
-    
-    if (voice.labels?.age) {
-      parts.push(`${voice.labels.age}`);
-    }
-    
-    return parts.join(' • ');
+    const gender = voice.labels?.gender;
+    return gender ? `${voice.name} (${gender})` : voice.name;
   };
 
   const getVoiceIcon = (voice: Voice) => {
     const gender = voice.labels?.gender?.toLowerCase();
-    if (gender === 'male') return '🎙️';
-    if (gender === 'female') return '👩';
-    return '🌐';
+    if (gender === 'male' || gender === 'female') {
+      return <User className="w-4 h-4 inline mr-1" />;
+    }
+    return <Mic className="w-4 h-4 inline mr-1" />;
   };
 
   const handlePlay = async () => {
@@ -279,17 +295,26 @@ const Index = () => {
           {/* Language Selection */}
           <div className="mb-6">
             <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-              🌍 Select Language
+              <Globe className="w-4 h-4" />
+              Select Language
             </label>
             <Select value={selectedLanguage} onValueChange={setSelectedLanguage} disabled={isLoadingVoices}>
               <SelectTrigger className="rounded-xl glass-card border-border/50 h-12">
                 <SelectValue placeholder="All Languages" />
               </SelectTrigger>
               <SelectContent className="rounded-xl glass-card border-border/50">
-                <SelectItem value="all">All Languages</SelectItem>
+                <SelectItem value="all">
+                  <span className="flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    All Languages
+                  </span>
+                </SelectItem>
                 {availableLanguages.map((lang) => (
                   <SelectItem key={lang} value={lang}>
-                    {lang}
+                    <span className="flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      {getLanguageFullName(lang)}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -311,12 +336,15 @@ const Index = () => {
                 {filteredVoices.length > 0 ? (
                   filteredVoices.map((v) => (
                     <SelectItem key={v.voice_id} value={v.voice_id}>
-                      {getVoiceIcon(v)} {getVoiceLabel(v)}
+                      <span className="flex items-center gap-2">
+                        {getVoiceIcon(v)}
+                        {getVoiceLabel(v)}
+                      </span>
                     </SelectItem>
                   ))
                 ) : (
                   <SelectItem value="loading" disabled>
-                    {selectedLanguage !== "all" ? `No voices for ${selectedLanguage}` : "Loading voices..."}
+                    {selectedLanguage !== "all" ? `No voices for ${getLanguageFullName(selectedLanguage)}` : "Loading voices..."}
                   </SelectItem>
                 )}
               </SelectContent>

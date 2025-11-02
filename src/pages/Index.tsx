@@ -17,6 +17,7 @@ interface Voice {
     age?: string;
     gender?: string;
     use_case?: string;
+    language?: string;
   };
   preview_url?: string;
 }
@@ -29,6 +30,7 @@ const Index = () => {
   const [isLoadingVoices, setIsLoadingVoices] = useState(true);
   const [voice, setVoice] = useState("9BWtsMINqrJLrRacOk9x"); // Aria
   const [availableVoices, setAvailableVoices] = useState<Voice[]>([]);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
   const [speed, setSpeed] = useState([1.0]);
   const [pitch, setPitch] = useState([1.0]);
   const [volume, setVolume] = useState([0.8]);
@@ -65,8 +67,26 @@ const Index = () => {
     loadVoices();
   }, []);
 
+  // Get unique languages from voices
+  const availableLanguages = Array.from(
+    new Set(
+      availableVoices
+        .map(v => v.labels?.language)
+        .filter((lang): lang is string => !!lang)
+    )
+  ).sort();
+
+  // Filter voices by selected language
+  const filteredVoices = selectedLanguage === "all" 
+    ? availableVoices 
+    : availableVoices.filter(v => v.labels?.language === selectedLanguage);
+
   const getVoiceLabel = (voice: Voice) => {
     const parts = [voice.name];
+    
+    if (voice.labels?.language) {
+      parts.push(`${voice.labels.language}`);
+    }
     
     if (voice.labels?.gender) {
       parts.push(`${voice.labels.gender}`);
@@ -244,26 +264,47 @@ const Index = () => {
             </div>
           </div>
 
+          {/* Language Selection */}
+          <div className="mb-6">
+            <label className="text-sm font-medium mb-3 block flex items-center gap-2">
+              🌍 Select Language
+            </label>
+            <Select value={selectedLanguage} onValueChange={setSelectedLanguage} disabled={isLoadingVoices}>
+              <SelectTrigger className="rounded-xl glass-card border-border/50 h-12">
+                <SelectValue placeholder="All Languages" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl glass-card border-border/50">
+                <SelectItem value="all">All Languages</SelectItem>
+                {availableLanguages.map((lang) => (
+                  <SelectItem key={lang} value={lang}>
+                    {lang}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Voice Selection */}
           <div className="mb-8">
             <label className="text-sm font-medium mb-3 block flex items-center gap-2">
               <Mic className="w-4 h-4" />
               Select Voice {isLoadingVoices && <span className="text-xs text-muted-foreground">(Loading...)</span>}
+              {selectedLanguage !== "all" && <span className="text-xs text-muted-foreground">({filteredVoices.length} voices)</span>}
             </label>
             <Select value={voice} onValueChange={setVoice} disabled={isLoadingVoices}>
               <SelectTrigger className="rounded-xl glass-card border-border/50 h-12">
                 <SelectValue placeholder="Choose a voice..." />
               </SelectTrigger>
               <SelectContent className="rounded-xl glass-card border-border/50 max-h-[400px]">
-                {availableVoices.length > 0 ? (
-                  availableVoices.map((v) => (
+                {filteredVoices.length > 0 ? (
+                  filteredVoices.map((v) => (
                     <SelectItem key={v.voice_id} value={v.voice_id}>
                       {getVoiceIcon(v)} {getVoiceLabel(v)}
                     </SelectItem>
                   ))
                 ) : (
                   <SelectItem value="loading" disabled>
-                    Loading voices...
+                    {selectedLanguage !== "all" ? `No voices for ${selectedLanguage}` : "Loading voices..."}
                   </SelectItem>
                 )}
               </SelectContent>

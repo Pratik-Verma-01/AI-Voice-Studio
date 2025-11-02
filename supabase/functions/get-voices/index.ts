@@ -31,7 +31,7 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('ElevenLabs API error:', response.status, errorText);
-      throw new Error(`Failed to fetch voices: ${response.status}`);
+      throw new Error('Failed to fetch voices');
     }
 
     const data = await response.json();
@@ -46,9 +46,8 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Error fetching voices:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Failed to load voices. Please try again.' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
@@ -11,7 +11,7 @@ import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 interface Voice {
   voice_id: string;
@@ -45,8 +45,8 @@ interface VoiceHistoryItem {
 }
 
 const Index = () => {
-  const navigate = useNavigate();
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [text, setText] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -77,24 +77,18 @@ const Index = () => {
 
   // Check authentication
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setUser(session.user);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setIsAuthLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setUser(session.user);
-      }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   // Load available voices on mount
   useEffect(() => {
@@ -263,7 +257,7 @@ const Index = () => {
             speed: speed[0],
             pitch: pitch[0],
             type: 'tts',
-            user_id: user?.id,
+            user_id: session?.user.id,
           });
 
         if (saveError) {
@@ -422,7 +416,7 @@ const Index = () => {
           speed: 1.0,
           pitch: 1.0,
           type: 'stt',
-          user_id: user?.id,
+          user_id: session?.user.id,
         });
 
       if (saveError) {
@@ -511,7 +505,7 @@ const Index = () => {
           speed: 1.0,
           pitch: 1.0,
           type: 'stt',
-          user_id: user?.id,
+          user_id: session?.user.id,
         });
 
       if (saveError) {
@@ -533,9 +527,24 @@ const Index = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/auth");
+    setSession(null);
     toast.success("Logged out successfully");
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Navigate to="/auth" replace />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">

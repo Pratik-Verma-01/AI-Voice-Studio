@@ -53,7 +53,7 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      throw new Error('Transcription failed');
     }
 
     const result = await response.json();
@@ -73,9 +73,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in speech-to-text function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Failed to transcribe audio. Please try again.' }),
       { 
         status: 500,
         headers: { 

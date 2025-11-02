@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, Menu, History, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -27,6 +29,17 @@ interface Voice {
   }>;
 }
 
+interface VoiceHistoryItem {
+  id: string;
+  text: string;
+  voice_id: string;
+  voice_name: string | null;
+  audio_url: string;
+  speed: number;
+  pitch: number;
+  created_at: string;
+}
+
 const Index = () => {
   const [text, setText] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -41,6 +54,11 @@ const Index = () => {
   const [volume, setVolume] = useState([0.8]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [voiceHistory, setVoiceHistory] = useState<VoiceHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [playingHistoryId, setPlayingHistoryId] = useState<string | null>(null);
+  const historyAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const maxChars = 5000;
   const charCount = text.length;
@@ -70,6 +88,30 @@ const Index = () => {
     };
 
     loadVoices();
+  }, []);
+
+  // Load voice history
+  const loadHistory = async () => {
+    try {
+      setIsLoadingHistory(true);
+      const { data, error } = await supabase
+        .from('voice_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setVoiceHistory(data || []);
+    } catch (error) {
+      console.error('Error loading history:', error);
+      toast.error("Failed to load history");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
   }, []);
 
   // Language code to full name mapping
@@ -138,7 +180,7 @@ const Index = () => {
     return <Mic className="w-4 h-4 inline mr-1" />;
   };
 
-  const handlePlay = async () => {
+  const handleGenerate = async () => {
     if (!text.trim()) {
       toast.error("Please enter some text first");
       return;
@@ -174,25 +216,29 @@ const Index = () => {
         const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
+        setGeneratedAudioUrl(url);
 
-        // Create and play audio
-        if (audioRef.current) {
-          audioRef.current.pause();
+        // Save to history
+        const selectedVoice = availableVoices.find(v => v.voice_id === voice);
+        const { error: saveError } = await supabase
+          .from('voice_history')
+          .insert({
+            text: text,
+            voice_id: voice,
+            voice_name: selectedVoice?.name || null,
+            audio_url: url,
+            speed: speed[0],
+            pitch: pitch[0],
+          });
+
+        if (saveError) {
+          console.error('Error saving to history:', saveError);
+        } else {
+          loadHistory(); // Reload history
         }
-        const audio = new Audio(url);
-        audio.volume = volume[0];
-        audioRef.current = audio;
 
-        audio.onended = () => {
-          setIsPlaying(false);
-          setIsPaused(false);
-        };
-
-        await audio.play();
-        setIsPlaying(true);
-        setIsPaused(false);
         toast.dismiss();
-        toast.success("Playing your text!");
+        toast.success("Speech generated successfully!");
       }
     } catch (error) {
       console.error('Error generating speech:', error);
@@ -200,6 +246,36 @@ const Index = () => {
       toast.error("Failed to generate speech. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePlay = async () => {
+    if (!generatedAudioUrl) {
+      toast.error("Please generate speech first");
+      return;
+    }
+
+    try {
+      // Create and play audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const audio = new Audio(generatedAudioUrl);
+      audio.volume = volume[0];
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setIsPaused(false);
+      };
+
+      await audio.play();
+      setIsPlaying(true);
+      setIsPaused(false);
+      toast.success("Playing your text!");
+    } catch (error) {
+      console.error('Error playing speech:', error);
+      toast.error("Failed to play speech. Please try again.");
     }
   };
 
@@ -230,13 +306,13 @@ const Index = () => {
   };
 
   const handleDownload = () => {
-    if (!audioUrl) {
+    if (!generatedAudioUrl) {
       toast.error("Please generate speech first");
       return;
     }
     
     const a = document.createElement('a');
-    a.href = audioUrl;
+    a.href = generatedAudioUrl;
     a.download = 'speech.mp3';
     document.body.appendChild(a);
     a.click();
@@ -253,9 +329,87 @@ const Index = () => {
     toast.success("Text copied to clipboard!");
   };
 
+  const playHistoryItem = (item: VoiceHistoryItem) => {
+    if (historyAudioRef.current) {
+      historyAudioRef.current.pause();
+    }
+
+    if (playingHistoryId === item.id) {
+      setPlayingHistoryId(null);
+      return;
+    }
+
+    const audio = new Audio(item.audio_url);
+    audio.volume = volume[0];
+    historyAudioRef.current = audio;
+
+    audio.onended = () => {
+      setPlayingHistoryId(null);
+    };
+
+    audio.play();
+    setPlayingHistoryId(item.id);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
       <ThemeToggle />
+      
+      {/* Menu Button */}
+      <div className="absolute top-4 left-4 z-20">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="rounded-full glass-card">
+              <Menu className="w-5 h-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-[400px] sm:w-[540px]">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <History className="w-5 h-5" />
+                Voice History
+              </SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="h-[calc(100vh-100px)] mt-6">
+              {isLoadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : voiceHistory.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No history yet</p>
+              ) : (
+                <div className="space-y-4 pr-4">
+                  {voiceHistory.map((item) => (
+                    <div key={item.id} className="glass-card p-4 rounded-xl space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm line-clamp-2 flex-1">{item.text}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={() => playHistoryItem(item)}
+                        >
+                          {playingHistoryId === item.id ? (
+                            <Pause className="w-4 h-4" />
+                          ) : (
+                            <Play className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <User className="w-3 h-3" />
+                        <span>{item.voice_name || 'Unknown'}</span>
+                        <span>•</span>
+                        <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+      </div>
       
       {/* Floating orbs for decoration */}
       <div className="absolute top-20 left-10 w-64 h-64 bg-primary/20 rounded-full blur-3xl animate-float" />
@@ -417,46 +571,69 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Control Buttons */}
-          <div className="flex justify-center items-center gap-4 mb-8">
-            {!isPlaying ? (
-              <Button
-                onClick={handlePlay}
-                variant="control"
-                size="controlLg"
-                className="shadow-xl"
-                disabled={isLoading}
-              >
-                <Play className="w-6 h-6 fill-current" />
-              </Button>
-            ) : (
-              <>
-                {!isPaused ? (
+          {/* Generate and Control Buttons */}
+          <div className="flex flex-col gap-4 mb-8">
+            <Button
+              onClick={handleGenerate}
+              variant="default"
+              size="lg"
+              className="w-full rounded-xl shadow-lg"
+              disabled={isLoading || !text.trim()}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Mic className="w-5 h-5 mr-2" />
+                  Generate Voice
+                </>
+              )}
+            </Button>
+
+            {generatedAudioUrl && (
+              <div className="flex justify-center items-center gap-4">
+                {!isPlaying ? (
                   <Button
-                    onClick={handlePause}
-                    variant="controlSecondary"
-                    size="controlMd"
+                    onClick={handlePlay}
+                    variant="control"
+                    size="controlLg"
+                    className="shadow-xl"
                   >
-                    <Pause className="w-5 h-5 fill-current" />
+                    <Play className="w-6 h-6 fill-current" />
                   </Button>
                 ) : (
-                  <Button
-                    onClick={handleResume}
-                    variant="control"
-                    size="controlMd"
-                  >
-                    <Play className="w-5 h-5 fill-current" />
-                  </Button>
+                  <>
+                    {!isPaused ? (
+                      <Button
+                        onClick={handlePause}
+                        variant="controlSecondary"
+                        size="controlMd"
+                      >
+                        <Pause className="w-5 h-5 fill-current" />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleResume}
+                        variant="control"
+                        size="controlMd"
+                      >
+                        <Play className="w-5 h-5 fill-current" />
+                      </Button>
+                    )}
+                    <Button
+                      onClick={handleStop}
+                      variant="destructive"
+                      size="controlMd"
+                      className="rounded-full hover:scale-110 active:scale-95 transition-bounce"
+                    >
+                      <Square className="w-5 h-5 fill-current" />
+                    </Button>
+                  </>
                 )}
-                <Button
-                  onClick={handleStop}
-                  variant="destructive"
-                  size="controlMd"
-                  className="rounded-full hover:scale-110 active:scale-95 transition-bounce"
-                >
-                  <Square className="w-5 h-5 fill-current" />
-                </Button>
-              </>
+              </div>
             )}
           </div>
 

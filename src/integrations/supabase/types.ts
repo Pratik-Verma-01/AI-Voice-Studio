@@ -22,6 +22,7 @@ export type Database = {
           pitch: number | null
           speed: number | null
           text: string
+          type: string
           voice_id: string
           voice_name: string | null
         }
@@ -32,6 +33,7 @@ export type Database = {
           pitch?: number | null
           speed?: number | null
           text: string
+          type?: string
           voice_id: string
           voice_name?: string | null
         }
@@ -42,6 +44,7 @@ export type Database = {
           pitch?: number | null
           speed?: number | null
           text?: string
+          type?: string
           voice_id?: string
           voice_name?: string | null
         }

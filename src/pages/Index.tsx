@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, Menu, History, Loader2 } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, Menu, History, Loader2, Upload, FileAudio } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -38,6 +39,7 @@ interface VoiceHistoryItem {
   speed: number;
   pitch: number;
   created_at: string;
+  type: 'tts' | 'stt';
 }
 
 const Index = () => {
@@ -59,6 +61,10 @@ const Index = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [playingHistoryId, setPlayingHistoryId] = useState<string | null>(null);
   const historyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const [transcribedText, setTranscribedText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const maxChars = 5000;
   const charCount = text.length;
@@ -101,7 +107,7 @@ const Index = () => {
         .limit(50);
 
       if (error) throw error;
-      setVoiceHistory(data || []);
+      setVoiceHistory((data || []) as VoiceHistoryItem[]);
     } catch (error) {
       console.error('Error loading history:', error);
       toast.error("Failed to load history");
@@ -229,6 +235,7 @@ const Index = () => {
             audio_url: url,
             speed: speed[0],
             pitch: pitch[0],
+            type: 'tts',
           });
 
         if (saveError) {
@@ -330,6 +337,11 @@ const Index = () => {
   };
 
   const playHistoryItem = (item: VoiceHistoryItem) => {
+    if (item.type === 'stt') {
+      toast.info("Speech-to-Text entries don't have audio");
+      return;
+    }
+
     if (historyAudioRef.current) {
       historyAudioRef.current.pause();
     }
@@ -351,6 +363,59 @@ const Index = () => {
     setPlayingHistoryId(item.id);
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsProcessingAudio(true);
+      toast.loading("Transcribing audio...");
+
+      const formData = new FormData();
+      formData.append('audio', file);
+
+      const { data, error } = await supabase.functions.invoke('speech-to-text', {
+        body: formData,
+      });
+
+      if (error) throw error;
+
+      const transcribedText = data.text || '';
+      setTranscribedText(transcribedText);
+
+      // Save to history
+      const { error: saveError } = await supabase
+        .from('voice_history')
+        .insert({
+          text: transcribedText,
+          voice_id: '',
+          voice_name: null,
+          audio_url: '',
+          speed: 1.0,
+          pitch: 1.0,
+          type: 'stt',
+        });
+
+      if (saveError) {
+        console.error('Error saving to history:', saveError);
+      } else {
+        loadHistory();
+      }
+
+      toast.dismiss();
+      toast.success("Audio transcribed successfully!");
+    } catch (error) {
+      console.error('Error transcribing audio:', error);
+      toast.dismiss();
+      toast.error("Failed to transcribe audio. Please try again.");
+    } finally {
+      setIsProcessingAudio(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
       <ThemeToggle />
@@ -367,46 +432,77 @@ const Index = () => {
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
                 <History className="w-5 h-5" />
-                Voice History
+                History
               </SheetTitle>
             </SheetHeader>
-            <ScrollArea className="h-[calc(100vh-100px)] mt-6">
-              {isLoadingHistory ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                </div>
-              ) : voiceHistory.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No history yet</p>
-              ) : (
-                <div className="space-y-4 pr-4">
-                  {voiceHistory.map((item) => (
-                    <div key={item.id} className="glass-card p-4 rounded-xl space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm line-clamp-2 flex-1">{item.text}</p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="shrink-0"
-                          onClick={() => playHistoryItem(item)}
-                        >
-                          {playingHistoryId === item.id ? (
-                            <Pause className="w-4 h-4" />
-                          ) : (
-                            <Play className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <User className="w-3 h-3" />
-                        <span>{item.voice_name || 'Unknown'}</span>
-                        <span>•</span>
-                        <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                      </div>
+            <Tabs defaultValue="tts" className="mt-6">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="tts">Text-to-Speech</TabsTrigger>
+                <TabsTrigger value="stt">Speech-to-Text</TabsTrigger>
+              </TabsList>
+              <ScrollArea className="h-[calc(100vh-180px)] mt-4">
+                <TabsContent value="tts" className="mt-0">
+                  {isLoadingHistory ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin" />
                     </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
+                  ) : voiceHistory.filter(item => item.type === 'tts').length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No TTS history yet</p>
+                  ) : (
+                    <div className="space-y-4 pr-4">
+                      {voiceHistory.filter(item => item.type === 'tts').map((item) => (
+                        <div key={item.id} className="glass-card p-4 rounded-xl space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm line-clamp-2 flex-1">{item.text}</p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="shrink-0"
+                              onClick={() => playHistoryItem(item)}
+                            >
+                              {playingHistoryId === item.id ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Play className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <User className="w-3 h-3" />
+                            <span>{item.voice_name || 'Unknown'}</span>
+                            <span>•</span>
+                            <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="stt" className="mt-0">
+                  {isLoadingHistory ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    </div>
+                  ) : voiceHistory.filter(item => item.type === 'stt').length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No STT history yet</p>
+                  ) : (
+                    <div className="space-y-4 pr-4">
+                      {voiceHistory.filter(item => item.type === 'stt').map((item) => (
+                        <div key={item.id} className="glass-card p-4 rounded-xl space-y-3">
+                          <p className="text-sm">{item.text}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <FileAudio className="w-3 h-3" />
+                            <span>Transcribed</span>
+                            <span>•</span>
+                            <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </ScrollArea>
+            </Tabs>
           </SheetContent>
         </Sheet>
       </div>
@@ -423,9 +519,17 @@ const Index = () => {
               AI Voice Studio
             </h1>
             <p className="text-muted-foreground text-sm md:text-base">
-              Transform your text into natural-sounding speech
+              Transform text to speech and speech to text
             </p>
           </div>
+
+          <Tabs defaultValue="tts" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="tts">Text-to-Speech</TabsTrigger>
+              <TabsTrigger value="stt">Speech-to-Text</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="tts" className="mt-0">
 
           {/* Text Input Area */}
           <div className="mb-6 relative">
@@ -665,6 +769,70 @@ const Index = () => {
               </div>
             </div>
           )}
+            </TabsContent>
+
+            <TabsContent value="stt" className="mt-0">
+              <div className="mb-6">
+                <label className="text-sm font-medium mb-3 block flex items-center gap-2">
+                  <FileAudio className="w-4 h-4" />
+                  Upload Audio File
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="audio-upload"
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="outline"
+                  className="w-full rounded-xl glass-card border-border/50 h-32"
+                  disabled={isProcessingAudio}
+                >
+                  {isProcessingAudio ? (
+                    <>
+                      <Loader2 className="w-8 h-8 mr-3 animate-spin" />
+                      Processing Audio...
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-8 h-8" />
+                      <span>Click to upload audio file</span>
+                      <span className="text-xs text-muted-foreground">Supported formats: MP3, WAV, etc.</span>
+                    </div>
+                  )}
+                </Button>
+              </div>
+
+              {transcribedText && (
+                <div className="mb-6">
+                  <label className="text-sm font-medium mb-3 block">
+                    Transcribed Text
+                  </label>
+                  <Textarea
+                    value={transcribedText}
+                    readOnly
+                    className="min-h-[200px] text-base rounded-2xl glass-card border-border/50 resize-none"
+                  />
+                  <div className="flex gap-3 mt-4">
+                    <Button
+                      onClick={() => {
+                        navigator.clipboard.writeText(transcribedText);
+                        toast.success("Text copied to clipboard!");
+                      }}
+                      variant="outline"
+                      className="rounded-full glass-card"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy Text
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Footer */}

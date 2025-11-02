@@ -20,6 +20,11 @@ interface Voice {
     language?: string;
   };
   preview_url?: string;
+  verified_languages?: Array<{
+    language: string;
+    accent?: string;
+    locale?: string;
+  }>;
 }
 
 const Index = () => {
@@ -67,11 +72,11 @@ const Index = () => {
     loadVoices();
   }, []);
 
-  // Get unique languages from voices
+  // Get unique languages from verified_languages array
   const availableLanguages = Array.from(
     new Set(
       availableVoices
-        .map(v => v.labels?.language)
+        .flatMap(v => v.verified_languages?.map(vl => vl.language) || [])
         .filter((lang): lang is string => !!lang)
     )
   ).sort();
@@ -79,13 +84,20 @@ const Index = () => {
   // Filter voices by selected language
   const filteredVoices = selectedLanguage === "all" 
     ? availableVoices 
-    : availableVoices.filter(v => v.labels?.language === selectedLanguage);
+    : availableVoices.filter(v => 
+        v.verified_languages?.some(vl => vl.language === selectedLanguage)
+      );
 
   const getVoiceLabel = (voice: Voice) => {
     const parts = [voice.name];
     
-    if (voice.labels?.language) {
-      parts.push(`${voice.labels.language}`);
+    // Get unique languages from verified_languages
+    const languages = Array.from(
+      new Set(voice.verified_languages?.map(vl => vl.language) || [])
+    );
+    
+    if (languages.length > 0) {
+      parts.push(languages.slice(0, 3).join(', ') + (languages.length > 3 ? '...' : ''));
     }
     
     if (voice.labels?.gender) {

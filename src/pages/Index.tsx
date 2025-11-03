@@ -935,7 +935,7 @@ const Index = () => {
           </p>
         </footer>
       </main>
-      <FloatingChat session={session} />
+      <FloatingChat session={session} showHistory={true} />
     </div>
   );
 };

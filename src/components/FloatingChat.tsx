@@ -25,11 +25,11 @@ interface ChatSession {
 
 interface FloatingChatProps {
   session: Session | null;
+  showHistory?: boolean;
 }
 
-const FloatingChat = ({ session }: FloatingChatProps) => {
+const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -373,54 +373,56 @@ const FloatingChat = ({ session }: FloatingChatProps) => {
   return (
     <>
       <div className="fixed inset-0 bg-background z-50 flex animate-scale-in">
-        <div className="w-80 border-r bg-muted/30 flex flex-col">
-          <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold flex items-center gap-2">
-              <History className="h-5 w-5 text-primary" />
-              Chat History
-            </h2>
-            <div className="flex gap-2">
-              <Button onClick={exportAllChats} size="icon" variant="ghost" title="Export all chats">
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button onClick={createNewChat} size="icon" variant="ghost" title="New chat">
-                <Plus className="h-4 w-4" />
-              </Button>
+        {showHistory && (
+          <div className="w-80 border-r bg-muted/30 flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="font-semibold flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" />
+                Chat History
+              </h2>
+              <div className="flex gap-2">
+                <Button onClick={exportAllChats} size="icon" variant="ghost" title="Export all chats">
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button onClick={createNewChat} size="icon" variant="ghost" title="New chat">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-          
-          <ScrollArea className="flex-1">
-            <div className="p-2 space-y-2">
-              {chatSessions.map((chatSession) => (
-                <div
-                  key={chatSession.id}
-                  className={`group p-3 rounded-lg cursor-pointer transition-all hover:bg-muted ${
-                    currentSessionId === chatSession.id ? "bg-muted border-l-4 border-primary" : ""
-                  }`}
-                  onClick={() => setCurrentSessionId(chatSession.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium truncate flex-1">{chatSession.title}</p>
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteSession(chatSession.id);
-                      }}
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+            
+            <ScrollArea className="flex-1">
+              <div className="p-2 space-y-2">
+                {chatSessions.map((chatSession) => (
+                  <div
+                    key={chatSession.id}
+                    className={`group p-3 rounded-lg cursor-pointer transition-all hover:bg-muted ${
+                      currentSessionId === chatSession.id ? "bg-muted border-l-4 border-primary" : ""
+                    }`}
+                    onClick={() => setCurrentSessionId(chatSession.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium truncate flex-1">{chatSession.title}</p>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSession(chatSession.id);
+                        }}
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(chatSession.updated_at).toLocaleDateString()}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(chatSession.updated_at).toLocaleDateString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
 
         <div className="flex-1 flex flex-col">
           <div className="flex items-center justify-between p-4 border-b bg-card/50 backdrop-blur">

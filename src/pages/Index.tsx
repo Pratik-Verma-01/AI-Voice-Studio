@@ -312,13 +312,24 @@ const Index = () => {
         setIsPaused(false);
       };
 
+      audio.onerror = (e) => {
+        console.error('Audio error:', e, audio.error);
+        setIsPlaying(false);
+        setIsPaused(false);
+        const errorMsg = audio.error?.message || "Playback failed";
+        toast.error(`Audio error: ${errorMsg}`);
+      };
+
       await audio.play();
       setIsPlaying(true);
       setIsPaused(false);
       toast.success("Playing your text!");
     } catch (error) {
       console.error('Error playing speech:', error);
-      toast.error("Failed to play speech. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to play: ${errorMessage}`);
+      setIsPlaying(false);
+      setIsPaused(false);
     }
   };
 
@@ -390,12 +401,40 @@ const Index = () => {
 
     // Convert base64 to blob URL for playback
     try {
-      const audioData = atob(item.audio_url);
+      // Validate audio_url exists and is not empty
+      if (!item.audio_url || item.audio_url.trim() === '') {
+        toast.error("No audio data available for this item");
+        return;
+      }
+
+      // Remove any whitespace and validate base64
+      const cleanedBase64 = item.audio_url.replace(/\s/g, '');
+      
+      // Try to decode base64
+      let audioData: string;
+      try {
+        audioData = atob(cleanedBase64);
+      } catch (decodeError) {
+        console.error('Base64 decode error:', decodeError);
+        toast.error("Audio data is corrupted or invalid");
+        return;
+      }
+
+      // Convert to Uint8Array
       const arrayBuffer = new Uint8Array(audioData.length);
       for (let i = 0; i < audioData.length; i++) {
         arrayBuffer[i] = audioData.charCodeAt(i);
       }
+      
+      // Create blob with proper MIME type
       const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      
+      // Validate blob size
+      if (blob.size === 0) {
+        toast.error("Audio file is empty");
+        return;
+      }
+
       const url = URL.createObjectURL(blob);
 
       const audio = new Audio(url);
@@ -408,23 +447,36 @@ const Index = () => {
       };
 
       audio.onerror = (e) => {
-        console.error('Audio playback error:', e);
+        console.error('Audio playback error:', e, audio.error);
         setPlayingHistoryId(null);
         URL.revokeObjectURL(url);
-        toast.error("Failed to play audio. The file may be corrupted.");
+        
+        // Provide more specific error message
+        const errorMsg = audio.error?.message || "Unknown error";
+        toast.error(`Playback failed: ${errorMsg}`);
+      };
+
+      audio.onloadstart = () => {
+        toast.info("Loading audio...");
+      };
+
+      audio.oncanplaythrough = () => {
+        toast.dismiss();
       };
 
       audio.play().catch(error => {
         console.error('Play error:', error);
         setPlayingHistoryId(null);
         URL.revokeObjectURL(url);
-        toast.error("Failed to play audio");
+        toast.error(`Cannot play audio: ${error.message}`);
       });
       
       setPlayingHistoryId(item.id);
+      toast.success("Playing audio...");
     } catch (error) {
       console.error('Error playing history audio:', error);
-      toast.error("Failed to decode audio data");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to play audio: ${errorMessage}`);
     }
   };
 

@@ -380,6 +380,7 @@ const Index = () => {
 
     if (historyAudioRef.current) {
       historyAudioRef.current.pause();
+      historyAudioRef.current = null;
     }
 
     if (playingHistoryId === item.id) {
@@ -406,11 +407,24 @@ const Index = () => {
         URL.revokeObjectURL(url);
       };
 
-      audio.play();
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        setPlayingHistoryId(null);
+        URL.revokeObjectURL(url);
+        toast.error("Failed to play audio. The file may be corrupted.");
+      };
+
+      audio.play().catch(error => {
+        console.error('Play error:', error);
+        setPlayingHistoryId(null);
+        URL.revokeObjectURL(url);
+        toast.error("Failed to play audio");
+      });
+      
       setPlayingHistoryId(item.id);
     } catch (error) {
       console.error('Error playing history audio:', error);
-      toast.error("Failed to play audio");
+      toast.error("Failed to decode audio data");
     }
   };
 

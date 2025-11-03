@@ -549,20 +549,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
-      {/* Top Right Controls - Theme Toggle and Logout in one line, spaced apart */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-4">
-        <ThemeToggle />
-        <Button 
-          variant="outline" 
-          size="icon" 
-          className="rounded-full glass-card hover-scale" 
-          onClick={handleLogout}
-        >
-          <LogOut className="w-5 h-5" />
-        </Button>
-      </div>
-      
-      {/* Menu Button with Voice & AI Chat History */}
+      {/* Menu Button with Voice & AI Chat History, Theme & Logout */}
       <div className="absolute top-4 left-4 z-20">
         <Sheet>
           <SheetTrigger asChild>
@@ -570,18 +557,32 @@ const Index = () => {
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[400px] sm:w-[540px] animate-slide-in-right">
+          <SheetContent side="left" className="w-[400px] sm:w-[540px] animate-in slide-in-from-left duration-300">
             <SheetHeader className="mb-6">
               <SheetTitle className="flex items-center gap-3 text-xl">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <Menu className="w-5 h-5 text-primary" />
                 </div>
-                History
+                Menu
               </SheetTitle>
-              <p className="text-sm text-muted-foreground text-left">
-                Access your voice and AI chat history
-              </p>
             </SheetHeader>
+            
+            {/* Menu Options */}
+            <div className="space-y-3 mb-6 pb-6 border-b">
+              <div className="glass-card p-3 rounded-xl">
+                <p className="text-sm font-medium mb-2 text-muted-foreground">Theme</p>
+                <ThemeToggle />
+              </div>
+              <Button 
+                onClick={handleLogout}
+                variant="outline"
+                className="w-full justify-start gap-3 hover-scale glass-card"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </Button>
+            </div>
+
             <Tabs defaultValue="voice" className="mt-2">
               <TabsList className="grid w-full grid-cols-3 glass-card">
                 <TabsTrigger value="voice" className="transition-all text-xs">Voice</TabsTrigger>
@@ -636,13 +637,7 @@ const Index = () => {
                   )}
                 </TabsContent>
                 <TabsContent value="ai-chat" className="mt-0">
-                  <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
-                    <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
-                      <History className="w-8 h-8 text-muted-foreground/50" />
-                    </div>
-                    <p className="text-center text-muted-foreground font-medium">AI Chat History</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">Only available in chat window</p>
-                  </div>
+                  <FloatingChat session={session} showHistory={true} />
                 </TabsContent>
                 <TabsContent value="transcribe" className="mt-0">
                   {isLoadingHistory ? (

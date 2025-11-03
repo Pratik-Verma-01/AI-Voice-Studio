@@ -373,9 +373,9 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
 
   return (
     <>
-      <div className="fixed inset-0 bg-background z-50 flex animate-scale-in">
+      <div className={`${showHistory ? 'relative h-[calc(100vh-280px)]' : 'fixed inset-0 z-50'} bg-background flex ${!showHistory ? 'animate-in fade-in slide-in-from-bottom-4 duration-300' : ''}`}>
         {showHistory && (
-          <div className="w-80 border-r bg-muted/30 flex flex-col animate-slide-in-right">
+          <div className="w-80 border-r bg-muted/30 flex flex-col animate-in slide-in-from-left duration-300">
             <div className="p-4 border-b flex items-center justify-between bg-card/50 backdrop-blur">
               <h2 className="font-semibold flex items-center gap-2 text-lg">
                 <History className="h-5 w-5 text-primary" />
@@ -645,7 +645,11 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
                 disabled={isLoading || (!input.trim() && !selectedImage)}
                 className="h-[52px] w-[52px] hover-scale"
               >
-                <Send className="h-5 w-5" />
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
               </Button>
             </div>
           </div>

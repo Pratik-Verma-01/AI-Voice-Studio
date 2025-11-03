@@ -92,13 +92,8 @@ const Index = () => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error('Session error:', error);
-        // Clear invalid session
-        supabase.auth.signOut();
-        setSession(null);
-        localStorage.clear();
-      } else {
-        setSession(session);
       }
+      setSession(session);
       setIsAuthLoading(false);
     });
 

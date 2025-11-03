@@ -246,7 +246,20 @@ const Index = () => {
         setAudioUrl(url);
         setGeneratedAudioUrl(url);
 
-        // Save to history
+        // Auto-play the generated audio
+        const audio = new Audio(url);
+        audio.volume = volume[0];
+        audioRef.current = audio;
+
+        audio.onended = () => {
+          setIsPlaying(false);
+          setIsPaused(false);
+        };
+
+        audio.play().catch(e => console.error("Auto-play failed:", e));
+        setIsPlaying(true);
+
+        // Save to history with base64 data
         const selectedVoice = availableVoices.find(v => v.voice_id === voice);
         const { error: saveError } = await supabase
           .from('voice_history')
@@ -254,7 +267,7 @@ const Index = () => {
             text: text,
             voice_id: voice,
             voice_name: selectedVoice?.name || null,
-            audio_url: url,
+            audio_url: data.audioContent, // Store base64 instead of blob URL
             speed: speed[0],
             pitch: pitch[0],
             type: 'tts',
@@ -268,7 +281,7 @@ const Index = () => {
         }
 
         toast.dismiss();
-        toast.success("Speech generated successfully!");
+        toast.success("Speech generated and playing!");
       }
     } catch (error) {
       console.error('Error generating speech:', error);
@@ -374,16 +387,31 @@ const Index = () => {
       return;
     }
 
-    const audio = new Audio(item.audio_url);
-    audio.volume = volume[0];
-    historyAudioRef.current = audio;
+    // Convert base64 to blob URL for playback
+    try {
+      const audioData = atob(item.audio_url);
+      const arrayBuffer = new Uint8Array(audioData.length);
+      for (let i = 0; i < audioData.length; i++) {
+        arrayBuffer[i] = audioData.charCodeAt(i);
+      }
+      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      const url = URL.createObjectURL(blob);
 
-    audio.onended = () => {
-      setPlayingHistoryId(null);
-    };
+      const audio = new Audio(url);
+      audio.volume = volume[0];
+      historyAudioRef.current = audio;
 
-    audio.play();
-    setPlayingHistoryId(item.id);
+      audio.onended = () => {
+        setPlayingHistoryId(null);
+        URL.revokeObjectURL(url);
+      };
+
+      audio.play();
+      setPlayingHistoryId(item.id);
+    } catch (error) {
+      console.error('Error playing history audio:', error);
+      toast.error("Failed to play audio");
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

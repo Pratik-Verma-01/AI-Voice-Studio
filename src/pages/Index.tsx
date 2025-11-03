@@ -78,13 +78,27 @@ const Index = () => {
 
   // Check authentication
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed successfully');
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        localStorage.clear();
+      }
       setSession(session);
       setIsAuthLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Session error:', error);
+        // Clear invalid session
+        supabase.auth.signOut();
+        setSession(null);
+        localStorage.clear();
+      } else {
+        setSession(session);
+      }
       setIsAuthLoading(false);
     });
 

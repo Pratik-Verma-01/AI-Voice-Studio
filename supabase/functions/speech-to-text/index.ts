@@ -2,89 +2,146 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const formData = await req.formData();
-    const audioFile = formData.get('audio');
-    
+    const audioFile = formData.get("audio");
+
     if (!audioFile || !(audioFile instanceof File)) {
-      throw new Error('No audio file provided');
+      return new Response(
+        JSON.stringify({ error: "No audio file provided" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Input validation
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (audioFile.size > maxSize) {
-      throw new Error('Audio file must be less than 10MB');
+    // Validate file size (10MB limit)
+    if (audioFile.size > 10 * 1024 * 1024) {
+      return new Response(
+        JSON.stringify({ error: "File too large (max 10MB)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const allowedTypes = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav'];
-    if (!allowedTypes.includes(audioFile.type)) {
-      throw new Error('Invalid audio file type');
+    // Validate file type
+    const validTypes = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/mp3"];
+    if (!validTypes.includes(audioFile.type)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid file type" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      console.error('API configuration missing');
-      throw new Error('Service temporarily unavailable');
+    const ASSEMBLYAI_API_KEY = Deno.env.get("ASSEMBLYAI_API_KEY");
+    if (!ASSEMBLYAI_API_KEY) {
+      console.error("AssemblyAI API key not configured");
+      return new Response(
+        JSON.stringify({ error: "Service temporarily unavailable" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Create form data for OpenAI Whisper API
-    const openAIFormData = new FormData();
-    openAIFormData.append('file', audioFile);
-    openAIFormData.append('model', 'whisper-1');
+    console.log("Uploading audio file to AssemblyAI...");
 
-    console.log('Calling speech-to-text API...');
-
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
+    // Step 1: Upload audio file to AssemblyAI
+    const uploadResponse = await fetch("https://api.assemblyai.com/v2/upload", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        authorization: ASSEMBLYAI_API_KEY,
       },
-      body: openAIFormData,
+      body: await audioFile.arrayBuffer(),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('STT API error:', response.status, errorText);
-      throw new Error('Transcription failed');
+    if (!uploadResponse.ok) {
+      console.error("Upload error:", uploadResponse.status, await uploadResponse.text());
+      return new Response(
+        JSON.stringify({ error: "Unable to upload audio" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const result = await response.json();
-    console.log('Transcription completed successfully');
+    const { upload_url } = await uploadResponse.json();
+    console.log("Audio uploaded successfully");
+
+    // Step 2: Create transcription
+    const transcriptResponse = await fetch("https://api.assemblyai.com/v2/transcript", {
+      method: "POST",
+      headers: {
+        authorization: ASSEMBLYAI_API_KEY,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        audio_url: upload_url,
+        language_detection: true,
+      }),
+    });
+
+    if (!transcriptResponse.ok) {
+      console.error("Transcription request error:", transcriptResponse.status);
+      return new Response(
+        JSON.stringify({ error: "Unable to start transcription" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { id } = await transcriptResponse.json();
+    console.log("Transcription started:", id);
+
+    // Step 3: Poll for completion
+    let transcriptResult;
+    let attempts = 0;
+    const maxAttempts = 60; // 60 seconds max wait
+
+    while (attempts < maxAttempts) {
+      const pollingResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {
+        headers: {
+          authorization: ASSEMBLYAI_API_KEY,
+        },
+      });
+
+      if (!pollingResponse.ok) {
+        console.error("Polling error:", pollingResponse.status);
+        throw new Error("Polling failed");
+      }
+
+      transcriptResult = await pollingResponse.json();
+
+      if (transcriptResult.status === "completed") {
+        console.log("Transcription completed successfully");
+        break;
+      } else if (transcriptResult.status === "error") {
+        console.error("Transcription error:", transcriptResult.error);
+        throw new Error(transcriptResult.error || "Transcription failed");
+      }
+
+      // Wait 1 second before next poll
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      return new Response(
+        JSON.stringify({ error: "Transcription timeout" }),
+        { status: 408, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
-      JSON.stringify({ 
-        text: result.text || '',
-      }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      JSON.stringify({ text: transcriptResult.text || "" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
-  } catch (error) {
-    console.error('Error in speech-to-text function:', error);
+  } catch (e) {
+    console.error("Transcription error:", e);
     return new Response(
-      JSON.stringify({ 
-        error: 'Unable to process request. Please try again.' 
-      }),
-      { 
-        status: 500,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      JSON.stringify({ error: "Unable to process audio" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

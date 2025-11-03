@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -549,41 +549,47 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
-      {/* Top Right Controls - Theme Toggle and Logout */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+      {/* Top Right Controls - Theme Toggle and Logout in a single line */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
         <ThemeToggle />
-        <Button variant="outline" size="icon" className="rounded-full glass-card hover-scale" onClick={handleLogout}>
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className="rounded-full glass-card hover-scale" 
+          onClick={handleLogout}
+        >
           <LogOut className="w-5 h-5" />
         </Button>
       </div>
       
-      {/* Voice History Menu Button */}
+      {/* Menu Button with Voice & AI Chat History */}
       <div className="absolute top-4 left-4 z-20">
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="rounded-full glass-card hover-scale">
-              <History className="w-5 h-5" />
+              <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[400px] sm:w-[540px] animate-slide-in-right">
             <SheetHeader className="mb-6">
               <SheetTitle className="flex items-center gap-3 text-xl">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <History className="w-5 h-5 text-primary" />
+                  <Menu className="w-5 h-5 text-primary" />
                 </div>
-                Voice History
+                History
               </SheetTitle>
               <p className="text-sm text-muted-foreground text-left">
-                Access and manage your voice conversion history
+                Access your voice and AI chat history
               </p>
             </SheetHeader>
-            <Tabs defaultValue="tts" className="mt-2">
-              <TabsList className="grid w-full grid-cols-2 glass-card">
-                <TabsTrigger value="tts" className="transition-all">Text-to-Speech</TabsTrigger>
-                <TabsTrigger value="stt" className="transition-all">Speech-to-Text</TabsTrigger>
+            <Tabs defaultValue="voice" className="mt-2">
+              <TabsList className="grid w-full grid-cols-3 glass-card">
+                <TabsTrigger value="voice" className="transition-all text-xs">Voice</TabsTrigger>
+                <TabsTrigger value="ai-chat" className="transition-all text-xs">AI Chat</TabsTrigger>
+                <TabsTrigger value="transcribe" className="transition-all text-xs">Transcribe</TabsTrigger>
               </TabsList>
               <ScrollArea className="h-[calc(100vh-220px)] mt-6">
-                <TabsContent value="tts" className="mt-0">
+                <TabsContent value="voice" className="mt-0">
                   {isLoadingHistory ? (
                     <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
                       <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
@@ -594,7 +600,7 @@ const Index = () => {
                       <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
                         <Volume2 className="w-8 h-8 text-muted-foreground/50" />
                       </div>
-                      <p className="text-center text-muted-foreground font-medium">No TTS history yet</p>
+                      <p className="text-center text-muted-foreground font-medium">No voice history yet</p>
                       <p className="text-xs text-muted-foreground/60 mt-1">Your generated voices will appear here</p>
                     </div>
                   ) : (
@@ -629,7 +635,16 @@ const Index = () => {
                     </div>
                   )}
                 </TabsContent>
-                <TabsContent value="stt" className="mt-0">
+                <TabsContent value="ai-chat" className="mt-0">
+                  <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                    <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                      <History className="w-8 h-8 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-center text-muted-foreground font-medium">AI Chat History</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Only available in chat window</p>
+                  </div>
+                </TabsContent>
+                <TabsContent value="transcribe" className="mt-0">
                   {isLoadingHistory ? (
                     <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
                       <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
@@ -640,7 +655,7 @@ const Index = () => {
                       <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
                         <FileAudio className="w-8 h-8 text-muted-foreground/50" />
                       </div>
-                      <p className="text-center text-muted-foreground font-medium">No STT history yet</p>
+                      <p className="text-center text-muted-foreground font-medium">No transcriptions yet</p>
                       <p className="text-xs text-muted-foreground/60 mt-1">Your transcriptions will appear here</p>
                     </div>
                   ) : (

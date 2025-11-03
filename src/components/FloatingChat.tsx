@@ -374,17 +374,29 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
     <>
       <div className="fixed inset-0 bg-background z-50 flex animate-scale-in">
         {showHistory && (
-          <div className="w-80 border-r bg-muted/30 flex flex-col">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="font-semibold flex items-center gap-2">
+          <div className="w-80 border-r bg-muted/30 flex flex-col animate-slide-in-right">
+            <div className="p-4 border-b flex items-center justify-between bg-card/50 backdrop-blur">
+              <h2 className="font-semibold flex items-center gap-2 text-lg">
                 <History className="h-5 w-5 text-primary" />
-                Chat History
+                AI Chat History
               </h2>
-              <div className="flex gap-2">
-                <Button onClick={exportAllChats} size="icon" variant="ghost" title="Export all chats">
+              <div className="flex gap-1">
+                <Button 
+                  onClick={exportAllChats} 
+                  size="icon" 
+                  variant="ghost" 
+                  className="h-8 w-8 hover-scale rounded-full" 
+                  title="Export all chats"
+                >
                   <Download className="h-4 w-4" />
                 </Button>
-                <Button onClick={createNewChat} size="icon" variant="ghost" title="New chat">
+                <Button 
+                  onClick={createNewChat} 
+                  size="icon" 
+                  variant="default" 
+                  className="h-8 w-8 hover-scale rounded-full" 
+                  title="New chat"
+                >
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -424,15 +436,28 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
           </div>
         )}
 
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col ${!showHistory ? 'w-full' : ''}`}>
           <div className="flex items-center justify-between p-4 border-b bg-card/50 backdrop-blur">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold">AI Assistant</h3>
+            <div className="flex items-center gap-3">
+              <MessageCircle className="h-6 w-6 text-primary" />
+              <h3 className="font-semibold text-lg">AI Assistant</h3>
             </div>
-            <Button onClick={handleToggle} size="icon" variant="ghost" className="hover-scale">
-              <X className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {!showHistory && (
+                <Button 
+                  onClick={createNewChat} 
+                  size="icon" 
+                  variant="ghost" 
+                  className="hover-scale rounded-full" 
+                  title="New chat"
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              )}
+              <Button onClick={handleToggle} size="icon" variant="ghost" className="hover-scale rounded-full">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
 
           <ScrollArea className="flex-1 p-6" ref={scrollRef}>

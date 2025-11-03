@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, Menu, History, Loader2, Upload, FileAudio, LogOut } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -549,65 +549,78 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
-      <ThemeToggle />
-      
-      {/* Logout Button */}
-      <div className="absolute top-4 right-20 z-20">
-        <Button variant="outline" size="icon" className="rounded-full glass-card" onClick={handleLogout}>
+      {/* Top Right Controls - Theme Toggle and Logout */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+        <ThemeToggle />
+        <Button variant="outline" size="icon" className="rounded-full glass-card hover-scale" onClick={handleLogout}>
           <LogOut className="w-5 h-5" />
         </Button>
       </div>
       
-      {/* Menu Button */}
+      {/* Voice History Menu Button */}
       <div className="absolute top-4 left-4 z-20">
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="rounded-full glass-card">
-              <Menu className="w-5 h-5" />
+            <Button variant="outline" size="icon" className="rounded-full glass-card hover-scale">
+              <History className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[400px] sm:w-[540px]">
-            <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <History className="w-5 h-5" />
-                History
+          <SheetContent side="left" className="w-[400px] sm:w-[540px] animate-slide-in-right">
+            <SheetHeader className="mb-6">
+              <SheetTitle className="flex items-center gap-3 text-xl">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <History className="w-5 h-5 text-primary" />
+                </div>
+                Voice History
               </SheetTitle>
+              <p className="text-sm text-muted-foreground text-left">
+                Access and manage your voice conversion history
+              </p>
             </SheetHeader>
-            <Tabs defaultValue="tts" className="mt-6">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="tts">Text-to-Speech</TabsTrigger>
-                <TabsTrigger value="stt">Speech-to-Text</TabsTrigger>
+            <Tabs defaultValue="tts" className="mt-2">
+              <TabsList className="grid w-full grid-cols-2 glass-card">
+                <TabsTrigger value="tts" className="transition-all">Text-to-Speech</TabsTrigger>
+                <TabsTrigger value="stt" className="transition-all">Speech-to-Text</TabsTrigger>
               </TabsList>
-              <ScrollArea className="h-[calc(100vh-180px)] mt-4">
+              <ScrollArea className="h-[calc(100vh-220px)] mt-6">
                 <TabsContent value="tts" className="mt-0">
                   {isLoadingHistory ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin" />
+                    <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+                      <p className="text-sm text-muted-foreground">Loading history...</p>
                     </div>
                   ) : voiceHistory.filter(item => item.type === 'tts').length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No TTS history yet</p>
+                    <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                      <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                        <Volume2 className="w-8 h-8 text-muted-foreground/50" />
+                      </div>
+                      <p className="text-center text-muted-foreground font-medium">No TTS history yet</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Your generated voices will appear here</p>
+                    </div>
                   ) : (
-                    <div className="space-y-4 pr-4">
+                    <div className="space-y-3 pr-4">
                       {voiceHistory.filter(item => item.type === 'tts').map((item) => (
-                        <div key={item.id} className="glass-card p-4 rounded-xl space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm line-clamp-2 flex-1">{item.text}</p>
+                        <div key={item.id} className="glass-card p-4 rounded-xl space-y-3 hover:bg-muted/50 transition-all hover-scale animate-fade-in">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-sm line-clamp-2 flex-1 leading-relaxed">{item.text}</p>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="shrink-0"
+                              className="shrink-0 hover-scale rounded-full"
                               onClick={() => playHistoryItem(item)}
                             >
                               {playingHistoryId === item.id ? (
-                                <Pause className="w-4 h-4" />
+                                <Pause className="w-4 h-4 text-primary" />
                               ) : (
                                 <Play className="w-4 h-4" />
                               )}
                             </Button>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <User className="w-3 h-3" />
-                            <span>{item.voice_name || 'Unknown'}</span>
+                            <div className="flex items-center gap-1.5">
+                              <User className="w-3 h-3" />
+                              <span className="font-medium">{item.voice_name || 'Unknown'}</span>
+                            </div>
                             <span>•</span>
                             <span>{new Date(item.created_at).toLocaleDateString()}</span>
                           </div>
@@ -618,19 +631,28 @@ const Index = () => {
                 </TabsContent>
                 <TabsContent value="stt" className="mt-0">
                   {isLoadingHistory ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin" />
+                    <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+                      <p className="text-sm text-muted-foreground">Loading history...</p>
                     </div>
                   ) : voiceHistory.filter(item => item.type === 'stt').length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No STT history yet</p>
+                    <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                      <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                        <FileAudio className="w-8 h-8 text-muted-foreground/50" />
+                      </div>
+                      <p className="text-center text-muted-foreground font-medium">No STT history yet</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Your transcriptions will appear here</p>
+                    </div>
                   ) : (
-                    <div className="space-y-4 pr-4">
+                    <div className="space-y-3 pr-4">
                       {voiceHistory.filter(item => item.type === 'stt').map((item) => (
-                        <div key={item.id} className="glass-card p-4 rounded-xl space-y-3">
-                          <p className="text-sm">{item.text}</p>
+                        <div key={item.id} className="glass-card p-4 rounded-xl space-y-3 hover:bg-muted/50 transition-all hover-scale animate-fade-in">
+                          <p className="text-sm leading-relaxed">{item.text}</p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <FileAudio className="w-3 h-3" />
-                            <span>Transcribed</span>
+                            <div className="flex items-center gap-1.5">
+                              <FileAudio className="w-3 h-3" />
+                              <span className="font-medium">Transcribed</span>
+                            </div>
                             <span>•</span>
                             <span>{new Date(item.created_at).toLocaleDateString()}</span>
                           </div>

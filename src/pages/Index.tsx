@@ -637,7 +637,21 @@ const Index = () => {
                   )}
                 </TabsContent>
                 <TabsContent value="ai-chat" className="mt-0">
-                  <FloatingChat session={session} showHistory={true} />
+                  <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <History className="w-8 h-8 text-primary" />
+                    </div>
+                    <p className="text-center text-muted-foreground font-medium mb-4">AI Chat History</p>
+                    <p className="text-xs text-muted-foreground/60 mb-6">Access your AI chat conversations</p>
+                    <Button 
+                      onClick={() => {
+                        document.querySelector('[data-open-ai-chat]')?.dispatchEvent(new Event('click'));
+                      }}
+                      className="hover-scale"
+                    >
+                      Open AI Assistant
+                    </Button>
+                  </div>
                 </TabsContent>
                 <TabsContent value="transcribe" className="mt-0">
                   {isLoadingHistory ? (

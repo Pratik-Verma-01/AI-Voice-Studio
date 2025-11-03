@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { HfInference } from "https://esm.sh/@huggingface/inference@2.3.2";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,30 +12,6 @@ serve(async (req) => {
   }
 
   try {
-    // Extract and validate user authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('User authentication failed');
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const { prompt } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
@@ -63,8 +38,6 @@ serve(async (req) => {
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    console.log(`Image generation for user: ${user.id}`);
 
     const hf = new HfInference(HUGGING_FACE_TOKEN);
 

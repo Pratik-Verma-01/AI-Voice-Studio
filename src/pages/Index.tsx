@@ -549,9 +549,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
-      {/* Top Right Controls - Theme Toggle and Logout in a single line */}
+      {/* Top Right Controls - Theme Toggle and Logout separately aligned */}
       <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
         <ThemeToggle />
+      </div>
+      <div className="absolute top-4 right-16 z-20 flex items-center">
         <Button 
           variant="outline" 
           size="icon" 

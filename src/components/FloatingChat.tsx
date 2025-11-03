@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Image as ImageIcon, Trash2, Download, Plus, History } from "lucide-react";
+import { MessageCircle, X, Send, Image as ImageIcon, Trash2, Download, Plus, History, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Session } from "@supabase/supabase-js";
@@ -37,6 +37,7 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -439,6 +440,84 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
         <div className={`flex-1 flex flex-col ${!showHistory ? 'w-full' : ''}`}>
           <div className="flex items-center justify-between p-4 border-b bg-card/50 backdrop-blur">
             <div className="flex items-center gap-3">
+              {!showHistory && (
+                <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+                  <SheetTrigger asChild>
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className="hover-scale rounded-full"
+                    >
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-80 sm:w-96 p-0">
+                    <SheetHeader className="p-4 border-b bg-card/50">
+                      <SheetTitle className="flex items-center gap-2">
+                        <History className="h-5 w-5 text-primary" />
+                        AI Chat History
+                      </SheetTitle>
+                    </SheetHeader>
+                    <div className="p-4 border-b flex items-center justify-between bg-muted/30">
+                      <Button 
+                        onClick={() => {
+                          createNewChat();
+                          setHistoryOpen(false);
+                        }} 
+                        size="sm" 
+                        variant="default" 
+                        className="hover-scale flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        New Chat
+                      </Button>
+                      <Button 
+                        onClick={exportAllChats} 
+                        size="sm" 
+                        variant="outline" 
+                        className="hover-scale flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export
+                      </Button>
+                    </div>
+                    <ScrollArea className="h-[calc(100vh-180px)]">
+                      <div className="p-2 space-y-2">
+                        {chatSessions.map((chatSession) => (
+                          <div
+                            key={chatSession.id}
+                            className={`group p-3 rounded-lg cursor-pointer transition-all hover:bg-muted ${
+                              currentSessionId === chatSession.id ? "bg-muted border-l-4 border-primary" : ""
+                            }`}
+                            onClick={() => {
+                              setCurrentSessionId(chatSession.id);
+                              setHistoryOpen(false);
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium truncate flex-1">{chatSession.title}</p>
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteSession(chatSession.id);
+                                }}
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(chatSession.updated_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </SheetContent>
+                </Sheet>
+              )}
               <MessageCircle className="h-6 w-6 text-primary" />
               <h3 className="font-semibold text-lg">AI Assistant</h3>
             </div>

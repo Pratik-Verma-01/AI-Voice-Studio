@@ -44,10 +44,10 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
   const openAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (isOpen && session) {
+    if ((isOpen || showHistory) && session) {
       loadChatSessions();
     }
-  }, [isOpen, session]);
+  }, [isOpen, showHistory, session]);
 
   useEffect(() => {
     if (currentSessionId && session) {
@@ -364,7 +364,7 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
       <Button
         onClick={handleToggle}
         size="icon"
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 z-50 animate-fade-in hover-scale"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 z-50 hover-scale transition-all duration-300"
       >
         <MessageCircle className="h-6 w-6" />
       </Button>
@@ -447,96 +447,103 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
                       size="icon" 
                       variant="ghost" 
                       className="hover-scale rounded-full"
+                      title="Menu"
                     >
                       <Menu className="h-5 w-5" />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="left" className="w-80 sm:w-96 p-0">
+                  <SheetContent side="left" className="w-80 sm:w-96 p-0 animate-in slide-in-from-left duration-300">
                     <SheetHeader className="p-4 border-b bg-card/50">
                       <SheetTitle className="flex items-center gap-2">
                         <History className="h-5 w-5 text-primary" />
-                        AI Chat History
+                        Menu
                       </SheetTitle>
                     </SheetHeader>
-                    <div className="p-4 border-b flex items-center justify-between bg-muted/30">
+                    <div className="p-3 space-y-2">
                       <Button 
                         onClick={() => {
                           createNewChat();
                           setHistoryOpen(false);
                         }} 
-                        size="sm" 
-                        variant="default" 
-                        className="hover-scale flex items-center gap-2"
+                        variant="outline" 
+                        className="w-full justify-start gap-3 hover-scale"
                       >
                         <Plus className="h-4 w-4" />
                         New Chat
                       </Button>
                       <Button 
                         onClick={exportAllChats} 
-                        size="sm" 
                         variant="outline" 
-                        className="hover-scale flex items-center gap-2"
+                        className="w-full justify-start gap-3 hover-scale"
                       >
                         <Download className="h-4 w-4" />
-                        Export
+                        Export Chats
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setHistoryOpen(false);
+                          handleToggle();
+                        }} 
+                        variant="outline" 
+                        className="w-full justify-start gap-3 hover-scale"
+                      >
+                        <X className="h-4 w-4" />
+                        Close Assistant
                       </Button>
                     </div>
-                    <ScrollArea className="h-[calc(100vh-180px)]">
-                      <div className="p-2 space-y-2">
-                        {chatSessions.map((chatSession) => (
-                          <div
-                            key={chatSession.id}
-                            className={`group p-3 rounded-lg cursor-pointer transition-all hover:bg-muted ${
-                              currentSessionId === chatSession.id ? "bg-muted border-l-4 border-primary" : ""
-                            }`}
-                            onClick={() => {
-                              setCurrentSessionId(chatSession.id);
-                              setHistoryOpen(false);
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium truncate flex-1">{chatSession.title}</p>
-                              <Button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteSession(chatSession.id);
+                    <div className="border-t p-4">
+                      <h3 className="font-semibold mb-3 flex items-center gap-2">
+                        <History className="h-4 w-4" />
+                        Chat History
+                      </h3>
+                      <ScrollArea className="h-[calc(100vh-280px)]">
+                        <div className="space-y-2">
+                          {chatSessions.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">No chats yet</p>
+                          ) : (
+                            chatSessions.map((chatSession) => (
+                              <div
+                                key={chatSession.id}
+                                className={`group p-3 rounded-lg cursor-pointer transition-all hover:bg-muted ${
+                                  currentSessionId === chatSession.id ? "bg-muted border-l-4 border-primary" : ""
+                                }`}
+                                onClick={() => {
+                                  setCurrentSessionId(chatSession.id);
+                                  setHistoryOpen(false);
                                 }}
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                               >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {new Date(chatSession.updated_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-medium truncate flex-1">{chatSession.title}</p>
+                                  <Button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteSession(chatSession.id);
+                                    }}
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {new Date(chatSession.updated_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
                   </SheetContent>
                 </Sheet>
               )}
               <MessageCircle className="h-6 w-6 text-primary" />
               <h3 className="font-semibold text-lg">AI Assistant</h3>
             </div>
-            <div className="flex items-center gap-2">
-              {!showHistory && (
-                <Button 
-                  onClick={createNewChat} 
-                  size="icon" 
-                  variant="ghost" 
-                  className="hover-scale rounded-full" 
-                  title="New chat"
-                >
-                  <Plus className="h-5 w-5" />
-                </Button>
-              )}
-              <Button onClick={handleToggle} size="icon" variant="ghost" className="hover-scale rounded-full">
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
+            <Button onClick={handleToggle} size="icon" variant="ghost" className="hover-scale rounded-full">
+              <X className="h-5 w-5" />
+            </Button>
           </div>
 
           <ScrollArea className="flex-1 p-6" ref={scrollRef}>

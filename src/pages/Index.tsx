@@ -1059,18 +1059,102 @@ const Index = () => {
             </TabsContent>
 
             <TabsContent value="stt" className="mt-0">
-              <div className="flex flex-col items-center justify-center py-20 px-6">
-                <div className="glass-card rounded-2xl p-12 max-w-md text-center">
-                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+              <div className="flex flex-col items-center py-8 px-4">
+                <div className="glass-card rounded-2xl p-8 w-full max-w-lg text-center space-y-6">
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                     <Mic className="w-10 h-10 text-primary" />
                   </div>
-                  <h3 className="text-2xl font-bold mb-3">Speech-to-Text</h3>
-                  <p className="text-muted-foreground mb-6">
-                    Convert your voice recordings and audio files into text
+                  <h3 className="text-2xl font-bold">Speech-to-Text</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Record your voice or upload an audio file to convert it to text
                   </p>
-                  <div className="inline-block px-6 py-3 bg-gradient-to-r from-primary to-secondary rounded-full text-sm font-medium">
-                    Coming Soon
+
+                  {/* Record Button */}
+                  <div className="flex flex-col items-center gap-4">
+                    <Button
+                      onClick={isRecording ? stopRecording : startRecording}
+                      variant={isRecording ? "destructive" : "default"}
+                      size="lg"
+                      className="w-full rounded-xl shadow-lg"
+                      disabled={isProcessingAudio}
+                    >
+                      {isProcessingAudio ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Transcribing...
+                        </>
+                      ) : isRecording ? (
+                        <>
+                          <Square className="w-5 h-5 mr-2 fill-current" />
+                          Stop Recording
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="w-5 h-5 mr-2" />
+                          Start Recording
+                        </>
+                      )}
+                    </Button>
+
+                    <div className="text-xs text-muted-foreground">or</div>
+
+                    {/* File Upload */}
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="outline"
+                      className="w-full rounded-xl glass-card border-primary/30 hover:border-primary/60"
+                      disabled={isProcessingAudio || isRecording}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Audio File
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Supports MP3, WAV, WebM, MP4 (max 10MB)
+                    </p>
                   </div>
+
+                  {/* Transcribed Text Output */}
+                  {transcribedText && (
+                    <div className="text-left space-y-3">
+                      <label className="text-sm font-medium block">Transcribed Text</label>
+                      <div className="glass-card rounded-xl p-4 border border-border/50 text-sm leading-relaxed max-h-60 overflow-y-auto">
+                        {transcribedText}
+                      </div>
+                      <div className="flex gap-2 justify-center">
+                        <Button
+                          onClick={() => {
+                            navigator.clipboard.writeText(transcribedText);
+                            toast.success("Copied to clipboard!");
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full"
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copy Text
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setText(transcribedText);
+                            toast.success("Text moved to TTS input!");
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full"
+                        >
+                          <FileAudio className="w-4 h-4 mr-2" />
+                          Use in TTS
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>

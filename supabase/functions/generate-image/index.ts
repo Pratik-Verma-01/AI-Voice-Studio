@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { HfInference } from "https://esm.sh/@huggingface/inference@2.3.2";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,15 +60,31 @@ serve(async (req) => {
       );
     }
 
-    const hf = new HfInference(HUGGING_FACE_TOKEN);
+    console.log("Generating image with prompt:", prompt.substring(0, 50));
 
-    const image = await hf.textToImage({
-      inputs: prompt,
-      model: "black-forest-labs/FLUX.1-schnell",
-    });
+    const response = await fetch(
+      "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${HUGGING_FACE_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs: prompt }),
+      }
+    );
 
-    const arrayBuffer = await image.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("HuggingFace API error:", response.status, errorText);
+      return new Response(
+        JSON.stringify({ error: "Unable to generate image" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = base64Encode(new Uint8Array(arrayBuffer));
 
     return new Response(
       JSON.stringify({ image: `data:image/png;base64,${base64}` }),

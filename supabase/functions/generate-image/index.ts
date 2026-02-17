@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { HfInference } from "https://esm.sh/@huggingface/inference@2.3.2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,28 @@ serve(async (req) => {
   }
 
   try {
+    // Validate auth
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !data?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { prompt } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
@@ -21,7 +44,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate prompt length
     if (prompt.length > 1000) {
       return new Response(
         JSON.stringify({ error: "Prompt too long (max 1000 characters)" }),
@@ -30,7 +52,6 @@ serve(async (req) => {
     }
 
     const HUGGING_FACE_TOKEN = Deno.env.get("HUGGING_FACE_ACCESS_TOKEN");
-    
     if (!HUGGING_FACE_TOKEN) {
       console.error("API configuration missing");
       return new Response(

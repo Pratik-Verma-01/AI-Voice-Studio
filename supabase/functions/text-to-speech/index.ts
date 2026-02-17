@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,23 +8,41 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Validate auth
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !data?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { text, voiceId, speed, pitch } = await req.json();
 
-    // Input validation
     if (!text || typeof text !== 'string') {
       throw new Error('Text is required and must be a string');
     }
-    
     if (text.length > 5000) {
       throw new Error('Text must be less than 5000 characters');
     }
-    
     if (text.trim().length === 0) {
       throw new Error('Text cannot be empty');
     }
@@ -34,9 +53,7 @@ serve(async (req) => {
       throw new Error('Service temporarily unavailable');
     }
 
-    // Default voice if not specified
-    const selectedVoice = voiceId || '9BWtsMINqrJLrRacOk9x'; // Aria
-
+    const selectedVoice = voiceId || '9BWtsMINqrJLrRacOk9x';
     console.log('Generating speech:', { voiceId: selectedVoice, textLength: text.length });
 
     const response = await fetch(
@@ -71,20 +88,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ audioContent: base64Audio }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('Error in text-to-speech function:', error);
     return new Response(
-      JSON.stringify({ 
-        error: 'Unable to process request. Please try again.' 
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: 'Unable to process request. Please try again.' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

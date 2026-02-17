@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,28 @@ serve(async (req) => {
   }
 
   try {
+    // Validate auth
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !data?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const formData = await req.formData();
     const audioFile = formData.get("audio");
 
@@ -22,7 +45,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate file size (10MB limit)
     if (audioFile.size > 10 * 1024 * 1024) {
       return new Response(
         JSON.stringify({ error: "File too large (max 10MB)" }),
@@ -30,7 +52,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate file type
     const validTypes = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/mp3"];
     if (!validTypes.includes(audioFile.type)) {
       return new Response(
@@ -50,12 +71,9 @@ serve(async (req) => {
 
     console.log("Uploading audio file to AssemblyAI...");
 
-    // Step 1: Upload audio file to AssemblyAI
     const uploadResponse = await fetch("https://api.assemblyai.com/v2/upload", {
       method: "POST",
-      headers: {
-        authorization: ASSEMBLYAI_API_KEY,
-      },
+      headers: { authorization: ASSEMBLYAI_API_KEY },
       body: await audioFile.arrayBuffer(),
     });
 
@@ -70,7 +88,6 @@ serve(async (req) => {
     const { upload_url } = await uploadResponse.json();
     console.log("Audio uploaded successfully");
 
-    // Step 2: Create transcription
     const transcriptResponse = await fetch("https://api.assemblyai.com/v2/transcript", {
       method: "POST",
       headers: {
@@ -94,16 +111,13 @@ serve(async (req) => {
     const { id } = await transcriptResponse.json();
     console.log("Transcription started:", id);
 
-    // Step 3: Poll for completion
     let transcriptResult;
     let attempts = 0;
-    const maxAttempts = 60; // 60 seconds max wait
+    const maxAttempts = 60;
 
     while (attempts < maxAttempts) {
       const pollingResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {
-        headers: {
-          authorization: ASSEMBLYAI_API_KEY,
-        },
+        headers: { authorization: ASSEMBLYAI_API_KEY },
       });
 
       if (!pollingResponse.ok) {
@@ -121,7 +135,6 @@ serve(async (req) => {
         throw new Error(transcriptResult.error || "Transcription failed");
       }
 
-      // Wait 1 second before next poll
       await new Promise((resolve) => setTimeout(resolve, 1000));
       attempts++;
     }

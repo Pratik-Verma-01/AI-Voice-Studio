@@ -69,9 +69,15 @@ const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
+  const [sttLanguage, setSttLanguage] = useState<string>("auto");
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [waveformBars, setWaveformBars] = useState<number[]>(Array(30).fill(0));
 
   const maxChars = 5000;
   const charCount = text.length;
@@ -499,6 +505,9 @@ const Index = () => {
 
       const formData = new FormData();
       formData.append('audio', file);
+      if (sttLanguage !== 'auto') {
+        formData.append('language', sttLanguage);
+      }
 
       const { data, error } = await supabase.functions.invoke('speech-to-text', {
         body: formData,
@@ -506,14 +515,13 @@ const Index = () => {
 
       if (error) throw error;
 
-      const transcribedText = data.text || '';
-      setTranscribedText(transcribedText);
+      const transcribed = data.text || '';
+      setTranscribedText(transcribed);
 
-      // Save to history
       const { error: saveError } = await supabase
         .from('voice_history')
         .insert({
-          text: transcribedText,
+          text: transcribed,
           voice_id: '',
           voice_name: null,
           audio_url: '',
@@ -543,12 +551,49 @@ const Index = () => {
     }
   };
 
+  const startWaveformAnimation = (stream: MediaStream) => {
+    const audioCtx = new AudioContext();
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    analyserRef.current = analyser;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const animate = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const bars = Array.from({ length: 30 }, (_, i) => {
+        const idx = Math.floor((i / 30) * dataArray.length);
+        return Math.max(4, (dataArray[idx] / 255) * 100);
+      });
+      setWaveformBars(bars);
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+  };
+
+  const stopWaveformAnimation = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setWaveformBars(Array(30).fill(0));
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+
+      startWaveformAnimation(stream);
+
+      // Timer
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds(s => s + 1);
+      }, 1000);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -557,10 +602,10 @@ const Index = () => {
       };
 
       mediaRecorder.onstop = async () => {
+        stopWaveformAnimation();
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await processAudioBlob(audioBlob);
-        
-        // Stop all tracks to release the microphone
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -581,6 +626,8 @@ const Index = () => {
     }
   };
 
+  const formatSeconds = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+
   const processAudioBlob = async (audioBlob: Blob) => {
     try {
       setIsProcessingAudio(true);
@@ -588,6 +635,9 @@ const Index = () => {
 
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
+      if (sttLanguage !== 'auto') {
+        formData.append('language', sttLanguage);
+      }
 
       const { data, error } = await supabase.functions.invoke('speech-to-text', {
         body: formData,
@@ -595,14 +645,13 @@ const Index = () => {
 
       if (error) throw error;
 
-      const transcribedText = data.text || '';
-      setTranscribedText(transcribedText);
+      const transcribed = data.text || '';
+      setTranscribedText(transcribed);
 
-      // Save to history
       const { error: saveError } = await supabase
         .from('voice_history')
         .insert({
-          text: transcribedText,
+          text: transcribed,
           voice_id: '',
           voice_name: null,
           audio_url: '',
@@ -1061,6 +1110,7 @@ const Index = () => {
             <TabsContent value="stt" className="mt-0">
               <div className="flex flex-col items-center py-8 px-4">
                 <div className="glass-card rounded-2xl p-8 w-full max-w-lg text-center space-y-6">
+                  {/* Icon & Header */}
                   <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                     <Mic className="w-10 h-10 text-primary" />
                   </div>
@@ -1069,7 +1119,84 @@ const Index = () => {
                     Record your voice or upload an audio file to convert it to text
                   </p>
 
-                  {/* Record Button */}
+                  {/* Language Selector */}
+                  <div className="text-left">
+                    <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Transcription Language
+                    </label>
+                    <Select value={sttLanguage} onValueChange={setSttLanguage} disabled={isRecording || isProcessingAudio}>
+                      <SelectTrigger className="rounded-xl glass-card border-border/50 h-11">
+                        <SelectValue placeholder="Auto-detect" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl max-h-[300px]">
+                        <SelectItem value="auto">🌐 Auto-detect</SelectItem>
+                        <SelectItem value="en">🇺🇸 English</SelectItem>
+                        <SelectItem value="es">🇪🇸 Spanish</SelectItem>
+                        <SelectItem value="fr">🇫🇷 French</SelectItem>
+                        <SelectItem value="de">🇩🇪 German</SelectItem>
+                        <SelectItem value="it">🇮🇹 Italian</SelectItem>
+                        <SelectItem value="pt">🇵🇹 Portuguese</SelectItem>
+                        <SelectItem value="nl">🇳🇱 Dutch</SelectItem>
+                        <SelectItem value="pl">🇵🇱 Polish</SelectItem>
+                        <SelectItem value="ru">🇷🇺 Russian</SelectItem>
+                        <SelectItem value="ja">🇯🇵 Japanese</SelectItem>
+                        <SelectItem value="zh">🇨🇳 Chinese</SelectItem>
+                        <SelectItem value="ko">🇰🇷 Korean</SelectItem>
+                        <SelectItem value="hi">🇮🇳 Hindi</SelectItem>
+                        <SelectItem value="ar">🇸🇦 Arabic</SelectItem>
+                        <SelectItem value="tr">🇹🇷 Turkish</SelectItem>
+                        <SelectItem value="sv">🇸🇪 Swedish</SelectItem>
+                        <SelectItem value="da">🇩🇰 Danish</SelectItem>
+                        <SelectItem value="fi">🇫🇮 Finnish</SelectItem>
+                        <SelectItem value="uk">🇺🇦 Ukrainian</SelectItem>
+                        <SelectItem value="id">🇮🇩 Indonesian</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Waveform Visualizer (visible while recording) */}
+                  {isRecording && (
+                    <div className="flex flex-col items-center gap-3 animate-fade-in">
+                      <div className="flex items-end justify-center gap-[3px] h-16 w-full">
+                        {waveformBars.map((height, i) => (
+                          <div
+                            key={i}
+                            className="w-2 rounded-full bg-primary transition-all duration-75"
+                            style={{ height: `${height}%`, opacity: 0.7 + (height / 100) * 0.3 }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                        <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                        Recording — {formatSeconds(recordingSeconds)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Processing animation */}
+                  {isProcessingAudio && (
+                    <div className="flex flex-col items-center gap-3 animate-fade-in">
+                      <div className="flex items-end justify-center gap-[3px] h-16 w-full">
+                        {Array.from({ length: 30 }, (_, i) => (
+                          <div
+                            key={i}
+                            className="w-2 rounded-full bg-primary/40 animate-pulse"
+                            style={{
+                              height: `${20 + Math.sin(i * 0.5) * 40}%`,
+                              animationDelay: `${i * 50}ms`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Transcribing with AssemblyAI...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Record & Upload Buttons */}
                   <div className="flex flex-col items-center gap-4">
                     <Button
                       onClick={isRecording ? stopRecording : startRecording}
@@ -1078,12 +1205,7 @@ const Index = () => {
                       className="w-full rounded-xl shadow-lg"
                       disabled={isProcessingAudio}
                     >
-                      {isProcessingAudio ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Transcribing...
-                        </>
-                      ) : isRecording ? (
+                      {isRecording ? (
                         <>
                           <Square className="w-5 h-5 mr-2 fill-current" />
                           Stop Recording
@@ -1098,7 +1220,6 @@ const Index = () => {
 
                     <div className="text-xs text-muted-foreground">or</div>
 
-                    {/* File Upload */}
                     <Button
                       onClick={() => fileInputRef.current?.click()}
                       variant="outline"
@@ -1122,7 +1243,7 @@ const Index = () => {
 
                   {/* Transcribed Text Output */}
                   {transcribedText && (
-                    <div className="text-left space-y-3">
+                    <div className="text-left space-y-3 animate-fade-in">
                       <label className="text-sm font-medium block">Transcribed Text</label>
                       <div className="glass-card rounded-xl p-4 border border-border/50 text-sm leading-relaxed max-h-60 overflow-y-auto">
                         {transcribedText}

@@ -37,6 +37,7 @@ serve(async (req) => {
 
     const formData = await req.formData();
     const audioFile = formData.get("audio");
+    const language = formData.get("language") as string | null;
 
     if (!audioFile || !(audioFile instanceof File)) {
       return new Response(
@@ -48,14 +49,6 @@ serve(async (req) => {
     if (audioFile.size > 10 * 1024 * 1024) {
       return new Response(
         JSON.stringify({ error: "File too large (max 10MB)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const validTypes = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/mp3"];
-    if (!validTypes.includes(audioFile.type)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid file type" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -88,16 +81,22 @@ serve(async (req) => {
     const { upload_url } = await uploadResponse.json();
     console.log("Audio uploaded successfully");
 
+    // Build transcript request body: use explicit language if provided, otherwise auto-detect
+    const transcriptBody: Record<string, unknown> = { audio_url: upload_url };
+    if (language && language !== "auto") {
+      transcriptBody.language_code = language;
+    } else {
+      transcriptBody.language_detection = true;
+    }
+    console.log("Transcribing with language:", language || "auto-detect");
+
     const transcriptResponse = await fetch("https://api.assemblyai.com/v2/transcript", {
       method: "POST",
       headers: {
         authorization: ASSEMBLYAI_API_KEY,
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        audio_url: upload_url,
-        language_detection: true,
-      }),
+      body: JSON.stringify(transcriptBody),
     });
 
     if (!transcriptResponse.ok) {

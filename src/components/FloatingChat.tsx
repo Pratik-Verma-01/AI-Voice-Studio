@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Image as ImageIcon, Trash2, Download, Plus, History, Menu } from "lucide-react";
+import { MessageCircle, X, Send, Image as ImageIcon, Trash2, Download, Plus, History, Menu, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Session } from "@supabase/supabase-js";
@@ -38,6 +39,7 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -216,6 +218,16 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleDownloadImage = (imageUrl: string) => {
+    const a = document.createElement("a");
+    a.href = imageUrl;
+    a.download = `ai-generated-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast({ title: "Download started!", description: "Image is being downloaded." });
   };
 
   const sendMessage = async () => {
@@ -513,11 +525,36 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
                     >
                       <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                       {msg.image_url && (
-                        <img 
-                          src={msg.image_url} 
-                          alt="Chat image" 
-                          className="mt-3 rounded-lg max-w-full shadow-md hover-scale" 
-                        />
+                        <div className="mt-3 space-y-2">
+                          <img 
+                            src={msg.image_url} 
+                            alt="Chat image" 
+                            className="rounded-lg max-w-full shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setPreviewImageUrl(msg.image_url!)}
+                          />
+                          {msg.role === "assistant" && (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full text-xs h-7 px-3 gap-1"
+                                onClick={() => setPreviewImageUrl(msg.image_url!)}
+                              >
+                                <ZoomIn className="w-3 h-3" />
+                                Preview
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full text-xs h-7 px-3 gap-1"
+                                onClick={() => handleDownloadImage(msg.image_url!)}
+                              >
+                                <Download className="w-3 h-3" />
+                                Download
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -596,6 +633,39 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
             </div>
           </div>
         </div>
+
+      {/* Image Preview Dialog */}
+      <Dialog open={!!previewImageUrl} onOpenChange={(open) => !open && setPreviewImageUrl(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-background/95 backdrop-blur">
+          <DialogTitle className="sr-only">Image Preview</DialogTitle>
+          {previewImageUrl && (
+            <div className="space-y-3">
+              <img
+                src={previewImageUrl}
+                alt="AI Generated"
+                className="w-full rounded-xl object-contain max-h-[80vh]"
+              />
+              <div className="flex justify-center gap-3 pb-2">
+                <Button
+                  variant="default"
+                  className="rounded-full gap-2"
+                  onClick={() => handleDownloadImage(previewImageUrl)}
+                >
+                  <Download className="w-4 h-4" />
+                  Download Image
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => setPreviewImageUrl(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       </>
     );
   };

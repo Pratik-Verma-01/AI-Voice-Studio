@@ -221,13 +221,33 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
   };
 
   const handleDownloadImage = (imageUrl: string) => {
-    const a = document.createElement("a");
-    a.href = imageUrl;
-    a.download = `ai-generated-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast({ title: "Download started!", description: "Image is being downloaded." });
+    try {
+      if (imageUrl.startsWith("data:")) {
+        const [meta, base64Data] = imageUrl.split(",");
+        const mimeType = meta.match(/:(.*?);/)?.[1] || "image/png";
+        const byteString = atob(base64Data);
+        const byteArray = new Uint8Array(byteString.length);
+        for (let i = 0; i < byteString.length; i++) byteArray[i] = byteString.charCodeAt(i);
+        const blob = new Blob([byteArray], { type: mimeType });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = `ai-generated-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      } else {
+        const a = document.createElement("a");
+        a.href = imageUrl;
+        a.download = `ai-generated-${Date.now()}.png`;
+        a.click();
+      }
+      toast({ title: "Download started!", description: "Image is being downloaded." });
+    } catch (err) {
+      console.error("Download failed:", err);
+      toast({ title: "Download failed", description: "Try right-clicking the image to save.", variant: "destructive" });
+    }
   };
 
   const sendMessage = async () => {

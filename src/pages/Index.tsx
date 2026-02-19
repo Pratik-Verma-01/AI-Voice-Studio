@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu, ImageIcon, ZoomIn, Sparkles, Wand2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,6 +79,12 @@ const Index = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [waveformBars, setWaveformBars] = useState<number[]>(Array(30).fill(0));
+
+  // Image Generation State
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   const maxChars = 5000;
   const charCount = text.length;
@@ -684,6 +691,54 @@ const Index = () => {
     toast.success("Logged out successfully");
   };
 
+  const handleGenerateImage = async () => {
+    if (!imagePrompt.trim()) {
+      toast.error("Please enter an image prompt");
+      return;
+    }
+    if (imagePrompt.length > 1000) {
+      toast.error("Prompt too long (max 1000 characters)");
+      return;
+    }
+    try {
+      setIsGeneratingImage(true);
+      setGeneratedImage(null);
+      toast.loading("Generating image...");
+
+      const { data, error } = await supabase.functions.invoke("generate-image", {
+        body: { prompt: imagePrompt },
+      });
+
+      toast.dismiss();
+
+      if (error) throw error;
+
+      if (data?.image) {
+        setGeneratedImage(data.image);
+        toast.success("Image generated!");
+      } else {
+        throw new Error("No image returned");
+      }
+    } catch (error) {
+      console.error("Image generation error:", error);
+      toast.dismiss();
+      toast.error("Failed to generate image. Please try again.");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const handleDownloadGeneratedImage = () => {
+    if (!generatedImage) return;
+    const a = document.createElement("a");
+    a.href = generatedImage;
+    a.download = `ai-image-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast.success("Download started!");
+  };
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -860,9 +915,10 @@ const Index = () => {
           </div>
 
           <Tabs defaultValue="tts" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="tts">Text-to-Speech</TabsTrigger>
-              <TabsTrigger value="stt">Speech-to-Text</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="tts" className="text-xs sm:text-sm">🎙️ Text-to-Speech</TabsTrigger>
+              <TabsTrigger value="stt" className="text-xs sm:text-sm">🎤 Speech-to-Text</TabsTrigger>
+              <TabsTrigger value="image" className="text-xs sm:text-sm">🎨 AI Images</TabsTrigger>
             </TabsList>
             
             <TabsContent value="tts" className="mt-0">
@@ -1279,6 +1335,154 @@ const Index = () => {
                 </div>
               </div>
             </TabsContent>
+
+            {/* Image Generation Tab */}
+            <TabsContent value="image" className="mt-0">
+              <div className="flex flex-col items-center py-8 px-4">
+                <div className="glass-card rounded-2xl p-8 w-full max-w-lg space-y-6">
+                  {/* Header */}
+                  <div className="text-center">
+                    <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                      <Wand2 className="w-10 h-10 text-accent" />
+                    </div>
+                    <h3 className="text-2xl font-bold">AI Image Generator</h3>
+                    <p className="text-muted-foreground text-sm mt-2">
+                      Describe what you want to see and let AI create it
+                    </p>
+                  </div>
+
+                  {/* Prompt Input */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-accent" />
+                      Image Prompt
+                    </label>
+                    <Textarea
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value.slice(0, 1000))}
+                      placeholder="A majestic mountain landscape at sunset with golden light reflecting on a calm lake, photorealistic..."
+                      className="min-h-[120px] rounded-xl glass-card border-border/50 focus:border-accent/50 transition-smooth resize-none text-sm"
+                      disabled={isGeneratingImage}
+                    />
+                    <div className="flex justify-end">
+                      <span className={`text-xs font-medium ${imagePrompt.length > 900 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {imagePrompt.length} / 1000
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Prompt suggestions */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground font-medium">Quick prompts:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "A futuristic city at night",
+                        "Cute robot in a garden",
+                        "Abstract colorful art",
+                        "Mountain sunrise landscape",
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setImagePrompt(suggestion)}
+                          disabled={isGeneratingImage}
+                          className="text-xs px-3 py-1 rounded-full border border-border/60 hover:border-accent/60 hover:bg-accent/5 transition-smooth text-muted-foreground hover:text-foreground"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Generate Button */}
+                  <Button
+                    onClick={handleGenerateImage}
+                    disabled={isGeneratingImage || !imagePrompt.trim()}
+                    size="lg"
+                    className="w-full rounded-xl shadow-lg bg-gradient-to-r from-accent to-primary hover:opacity-90 transition-smooth"
+                  >
+                    {isGeneratingImage ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-5 h-5 mr-2" />
+                        Generate Image
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Loading Animation */}
+                  {isGeneratingImage && (
+                    <div className="flex flex-col items-center gap-3 py-4 animate-fade-in">
+                      <div className="flex items-end justify-center gap-[3px] h-12 w-full">
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 rounded-full bg-accent/40 animate-pulse"
+                            style={{
+                              height: `${30 + Math.sin(i * 0.8) * 50}%`,
+                              animationDelay: `${i * 80}ms`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Creating your masterpiece...</p>
+                    </div>
+                  )}
+
+                  {/* Generated Image Display */}
+                  {generatedImage && !isGeneratingImage && (
+                    <div className="space-y-3 animate-fade-in">
+                      <label className="text-sm font-medium block">Generated Image</label>
+                      <div className="relative group">
+                        <img
+                          src={generatedImage}
+                          alt="AI Generated"
+                          className="w-full rounded-xl shadow-lg cursor-pointer hover:opacity-95 transition-smooth border border-border/30"
+                          onClick={() => setPreviewImageUrl(generatedImage)}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-xl transition-smooth flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <ZoomIn className="w-8 h-8 text-white drop-shadow-lg" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-center flex-wrap">
+                        <Button
+                          onClick={() => setPreviewImageUrl(generatedImage)}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full gap-2"
+                        >
+                          <ZoomIn className="w-4 h-4" />
+                          Preview
+                        </Button>
+                        <Button
+                          onClick={handleDownloadGeneratedImage}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setGeneratedImage(null);
+                            setImagePrompt("");
+                          }}
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-full gap-2 text-muted-foreground"
+                        >
+                          Generate New
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -1289,6 +1493,48 @@ const Index = () => {
           </p>
         </footer>
       </main>
+
+      {/* Global Image Preview Dialog */}
+      <Dialog open={!!previewImageUrl} onOpenChange={(open) => !open && setPreviewImageUrl(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-background/95 backdrop-blur">
+          <DialogTitle className="sr-only">Image Preview</DialogTitle>
+          {previewImageUrl && (
+            <div className="space-y-3">
+              <img
+                src={previewImageUrl}
+                alt="AI Generated"
+                className="w-full rounded-xl object-contain max-h-[80vh]"
+              />
+              <div className="flex justify-center gap-3 pb-2">
+                <Button
+                  variant="default"
+                  className="rounded-full gap-2"
+                  onClick={() => {
+                    const a = document.createElement("a");
+                    a.href = previewImageUrl;
+                    a.download = `ai-image-${Date.now()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    toast.success("Download started!");
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                  Download Image
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => setPreviewImageUrl(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <FloatingChat session={session} showHistory={true} />
     </div>
   );

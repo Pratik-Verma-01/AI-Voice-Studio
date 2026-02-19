@@ -730,13 +730,29 @@ const Index = () => {
 
   const handleDownloadGeneratedImage = () => {
     if (!generatedImage) return;
-    const a = document.createElement("a");
-    a.href = generatedImage;
-    a.download = `ai-image-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success("Download started!");
+    try {
+      // Convert base64 data URL to Blob to bypass browser security restrictions
+      const [meta, base64Data] = generatedImage.split(",");
+      const mimeType = meta.match(/:(.*?);/)?.[1] || "image/png";
+      const byteString = atob(base64Data);
+      const byteArray = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        byteArray[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `ai-image-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      toast.success("Download started!");
+    } catch (err) {
+      console.error("Download failed:", err);
+      toast.error("Download failed. Please try right-clicking the image.");
+    }
   };
 
   if (isAuthLoading) {
@@ -1413,38 +1429,57 @@ const Index = () => {
                     )}
                   </Button>
 
-                  {/* Loading Animation */}
+                  {/* ChatGPT-style Shimmer Loading */}
                   {isGeneratingImage && (
-                    <div className="flex flex-col items-center gap-3 py-4 animate-fade-in">
-                      <div className="flex items-end justify-center gap-[3px] h-12 w-full">
-                        {Array.from({ length: 24 }, (_, i) => (
-                          <div
-                            key={i}
-                            className="flex-1 rounded-full bg-accent/40 animate-pulse"
-                            style={{
-                              height: `${30 + Math.sin(i * 0.8) * 50}%`,
-                              animationDelay: `${i * 80}ms`,
-                            }}
-                          />
-                        ))}
+                    <div className="space-y-3 animate-fade-in">
+                      <label className="text-sm font-medium block text-muted-foreground">Generating image…</label>
+                      <div className="relative w-full aspect-square rounded-xl overflow-hidden border border-border/30">
+                        {/* Shimmer base */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-muted/60 via-muted/30 to-muted/60" />
+                        {/* Animated shimmer sweep */}
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            background: "linear-gradient(105deg, transparent 40%, hsl(var(--primary)/0.12) 50%, transparent 60%)",
+                            backgroundSize: "200% 100%",
+                            animation: "shimmer-sweep 1.6s ease-in-out infinite",
+                          }}
+                        />
+                        {/* Floating particle dots */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
+                          <div className="flex gap-2">
+                            {[0, 1, 2, 3, 4].map((i) => (
+                              <div
+                                key={i}
+                                className="w-2.5 h-2.5 rounded-full bg-primary/60"
+                                style={{ animation: `bounce 1.2s ease-in-out ${i * 0.15}s infinite` }}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-sm text-muted-foreground font-medium">Creating your masterpiece…</p>
+                          <p className="text-xs text-muted-foreground/60">This may take a few seconds</p>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">Creating your masterpiece...</p>
                     </div>
                   )}
 
-                  {/* Generated Image Display */}
+                  {/* Generated Image Display with reveal animation */}
                   {generatedImage && !isGeneratingImage && (
-                    <div className="space-y-3 animate-fade-in">
+                    <div className="space-y-3 animate-scale-in">
                       <label className="text-sm font-medium block">Generated Image</label>
-                      <div className="relative group">
+                      <div className="relative group cursor-pointer" onClick={() => setPreviewImageUrl(generatedImage)}>
                         <img
                           src={generatedImage}
                           alt="AI Generated"
-                          className="w-full rounded-xl shadow-lg cursor-pointer hover:opacity-95 transition-smooth border border-border/30"
-                          onClick={() => setPreviewImageUrl(generatedImage)}
+                          className="w-full rounded-xl shadow-xl border border-border/30 transition-smooth"
+                          style={{ animation: "image-reveal 0.6s cubic-bezier(0.16,1,0.3,1) both" }}
                         />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-xl transition-smooth flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <ZoomIn className="w-8 h-8 text-white drop-shadow-lg" />
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/20 transition-smooth flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-smooth bg-black/60 rounded-full px-4 py-2 flex items-center gap-2">
+                            <ZoomIn className="w-4 h-4 text-white" />
+                            <span className="text-white text-sm font-medium">Preview</span>
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-2 justify-center flex-wrap">
@@ -1452,28 +1487,24 @@ const Index = () => {
                           onClick={() => setPreviewImageUrl(generatedImage)}
                           variant="outline"
                           size="sm"
-                          className="rounded-full gap-2"
+                          className="rounded-full gap-2 hover-scale"
                         >
                           <ZoomIn className="w-4 h-4" />
                           Preview
                         </Button>
                         <Button
                           onClick={handleDownloadGeneratedImage}
-                          variant="outline"
                           size="sm"
-                          className="rounded-full gap-2"
+                          className="rounded-full gap-2 hover-scale bg-primary"
                         >
                           <Download className="w-4 h-4" />
                           Download
                         </Button>
                         <Button
-                          onClick={() => {
-                            setGeneratedImage(null);
-                            setImagePrompt("");
-                          }}
+                          onClick={() => { setGeneratedImage(null); setImagePrompt(""); }}
                           variant="ghost"
                           size="sm"
-                          className="rounded-full gap-2 text-muted-foreground"
+                          className="rounded-full gap-2 text-muted-foreground hover-scale"
                         >
                           Generate New
                         </Button>
@@ -1510,23 +1541,31 @@ const Index = () => {
                   variant="default"
                   className="rounded-full gap-2"
                   onClick={() => {
-                    const a = document.createElement("a");
-                    a.href = previewImageUrl;
-                    a.download = `ai-image-${Date.now()}.png`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    toast.success("Download started!");
+                    try {
+                      const [meta, b64] = previewImageUrl.split(",");
+                      const mime = meta.match(/:(.*?);/)?.[1] || "image/png";
+                      const bytes = atob(b64);
+                      const arr = new Uint8Array(bytes.length);
+                      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+                      const blob = new Blob([arr], { type: mime });
+                      const blobUrl = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = blobUrl;
+                      a.download = `ai-image-${Date.now()}.png`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+                      toast.success("Download started!");
+                    } catch {
+                      toast.error("Download failed. Try right-clicking the image.");
+                    }
                   }}
                 >
                   <Download className="w-4 h-4" />
                   Download Image
                 </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() => setPreviewImageUrl(null)}
-                >
+                <Button variant="outline" className="rounded-full" onClick={() => setPreviewImageUrl(null)}>
                   Close
                 </Button>
               </div>

@@ -3,10 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mic, Eye, EyeOff, User, Mail, Lock } from "lucide-react";
 import { z } from "zod";
 
 const signInSchema = z.object({
@@ -31,24 +30,24 @@ const Auth = () => {
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
+  const [showSignInPassword, setShowSignInPassword] = useState(false);
 
   // Sign Up state
   const [fullName, setFullName] = useState("");
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/");
-      }
+      if (session) navigate("/");
     });
   }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const validation = signUpSchema.safeParse({
       fullName,
       email: signUpEmail.trim(),
@@ -59,9 +58,7 @@ const Auth = () => {
       toast.error(validation.error.errors[0].message);
       return;
     }
-
     setIsLoading(true);
-
     const { error } = await supabase.auth.signUp({
       email: validation.data.email,
       password: validation.data.password,
@@ -70,124 +67,206 @@ const Auth = () => {
         data: { full_name: validation.data.fullName },
       },
     });
-
     setIsLoading(false);
-
     if (error) {
       toast.error(error.message);
     } else {
       toast.success("Account created! Please check your email to verify your account.");
-      setFullName("");
-      setSignUpEmail("");
-      setSignUpPassword("");
-      setConfirmPassword("");
+      setFullName(""); setSignUpEmail(""); setSignUpPassword(""); setConfirmPassword("");
     }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const validation = signInSchema.safeParse({ email: signInEmail.trim(), password: signInPassword });
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
       return;
     }
-
     setIsLoading(true);
-
     const { error } = await supabase.auth.signInWithPassword({
       email: validation.data.email,
       password: validation.data.password,
     });
-
     setIsLoading(false);
-
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Signed in successfully!");
+      toast.success("Welcome back!");
       navigate("/");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-background dark:via-background dark:to-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl">Welcome to Voice Studio</CardTitle>
-          <CardDescription>Sign in or create an account to continue</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative orbs */}
+      <div className="absolute top-20 left-10 w-64 h-64 bg-primary/20 rounded-full blur-3xl animate-float pointer-events-none" />
+      <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-float pointer-events-none" style={{ animationDelay: '1s' }} />
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Brand Header */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4 glow-primary">
+            <Mic className="w-8 h-8 text-primary" />
+          </div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            AI Voice Studio
+          </h1>
+          <p className="text-muted-foreground text-sm mt-2">
+            Transform your voice with the power of AI
+          </p>
+        </div>
+
+        {/* Auth Card */}
+        <div className="glass-card rounded-3xl p-8 shadow-2xl">
           <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 glass-card">
+              <TabsTrigger value="signin" className="rounded-xl">Sign In</TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-xl">Sign Up</TabsTrigger>
             </TabsList>
 
+            {/* Sign In Tab */}
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4 mt-4">
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={signInEmail}
-                  onChange={(e) => setSignInEmail(e.target.value)}
-                  required
-                />
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  value={signInPassword}
-                  onChange={(e) => setSignInPassword(e.target.value)}
-                  required
-                />
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium flex items-center gap-2 text-foreground/80">
+                    <Mail className="w-3.5 h-3.5" /> Email
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={signInEmail}
+                    onChange={(e) => setSignInEmail(e.target.value)}
+                    className="rounded-xl glass-card border-border/50 focus:border-primary/50 h-11"
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium flex items-center gap-2 text-foreground/80">
+                    <Lock className="w-3.5 h-3.5" /> Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showSignInPassword ? "text" : "password"}
+                      placeholder="Your password"
+                      value={signInPassword}
+                      onChange={(e) => setSignInPassword(e.target.value)}
+                      className="rounded-xl glass-card border-border/50 focus:border-primary/50 h-11 pr-10"
+                      required
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignInPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-smooth"
+                    >
+                      {showSignInPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <Button type="submit" className="w-full rounded-xl h-11 shadow-lg mt-2" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Sign In
                 </Button>
               </form>
             </TabsContent>
 
+            {/* Sign Up Tab */}
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4 mt-4">
-                <Input
-                  type="text"
-                  placeholder="Full Name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={signUpEmail}
-                  onChange={(e) => setSignUpEmail(e.target.value)}
-                  required
-                />
-                <Input
-                  type="password"
-                  placeholder="Password (min 6 characters)"
-                  value={signUpPassword}
-                  onChange={(e) => setSignUpPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-                <Input
-                  type="password"
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign Up
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium flex items-center gap-2 text-foreground/80">
+                    <User className="w-3.5 h-3.5" /> Full Name
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="rounded-xl glass-card border-border/50 focus:border-primary/50 h-11"
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium flex items-center gap-2 text-foreground/80">
+                    <Mail className="w-3.5 h-3.5" /> Email
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={signUpEmail}
+                    onChange={(e) => setSignUpEmail(e.target.value)}
+                    className="rounded-xl glass-card border-border/50 focus:border-primary/50 h-11"
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium flex items-center gap-2 text-foreground/80">
+                    <Lock className="w-3.5 h-3.5" /> Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showSignUpPassword ? "text" : "password"}
+                      placeholder="Min. 6 characters"
+                      value={signUpPassword}
+                      onChange={(e) => setSignUpPassword(e.target.value)}
+                      className="rounded-xl glass-card border-border/50 focus:border-primary/50 h-11 pr-10"
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignUpPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-smooth"
+                    >
+                      {showSignUpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium flex items-center gap-2 text-foreground/80">
+                    <Lock className="w-3.5 h-3.5" /> Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Repeat your password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="rounded-xl glass-card border-border/50 focus:border-primary/50 h-11 pr-10"
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-smooth"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <Button type="submit" className="w-full rounded-xl h-11 shadow-lg mt-2" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Create Account
                 </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  You'll receive a verification email after signing up.
+                </p>
               </form>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground mt-6 flex items-center justify-center gap-2">
+          Developed with <span className="text-destructive animate-pulse">❤️</span> by <span className="font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Code-With-Pratik</span>
+        </p>
+      </div>
     </div>
   );
 };

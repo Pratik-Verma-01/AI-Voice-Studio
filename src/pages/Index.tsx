@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu, ImageIcon, ZoomIn, Sparkles, Wand2 } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu, ImageIcon, ZoomIn, Sparkles, Wand2, Share2, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,6 +86,10 @@ const Index = () => {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
+  // Image History State
+  const [imageHistory, setImageHistory] = useState<Array<{ id: string; prompt: string; image_data: string; created_at: string }>>([]);
+  const [isLoadingImageHistory, setIsLoadingImageHistory] = useState(false);
+
   const maxChars = 5000;
   const charCount = text.length;
 
@@ -160,8 +164,27 @@ const Index = () => {
     }
   };
 
+  // Load image history
+  const loadImageHistory = async () => {
+    try {
+      setIsLoadingImageHistory(true);
+      const { data, error } = await supabase
+        .from('image_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      setImageHistory(data || []);
+    } catch (error) {
+      console.error('Error loading image history:', error);
+    } finally {
+      setIsLoadingImageHistory(false);
+    }
+  };
+
   useEffect(() => {
     loadHistory();
+    loadImageHistory();
   }, []);
 
   // Language code to full name mapping
@@ -716,6 +739,20 @@ const Index = () => {
       if (data?.image) {
         setGeneratedImage(data.image);
         toast.success("Image generated!");
+
+        // Save to image history
+        const { error: saveError } = await supabase
+          .from('image_history')
+          .insert({
+            prompt: imagePrompt,
+            image_data: data.image,
+            user_id: session?.user.id,
+          });
+        if (saveError) {
+          console.error('Error saving image to history:', saveError);
+        } else {
+          loadImageHistory();
+        }
       } else {
         throw new Error("No image returned");
       }
@@ -766,6 +803,49 @@ const Index = () => {
       // Ultimate fallback: open data URL directly
       window.open(generatedImage, "_blank");
       toast.info("Image opened in new tab — long-press to save");
+    }
+  };
+
+  const handleShareImage = async (imageData: string) => {
+    try {
+      if (navigator.share) {
+        // Convert base64 to blob for sharing
+        const [meta, b64] = imageData.split(",");
+        const mime = meta.match(/:(.*?);/)?.[1] || "image/png";
+        const bytes = atob(b64);
+        const arr = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+        const blob = new Blob([arr], { type: mime });
+        const file = new File([blob], `ai-image-${Date.now()}.png`, { type: mime });
+
+        await navigator.share({
+          title: "AI Generated Image",
+          text: "Check out this AI-generated image!",
+          files: [file],
+        });
+        toast.success("Shared successfully!");
+      } else {
+        // Fallback: copy image data URL to clipboard
+        await navigator.clipboard.writeText(imageData);
+        toast.success("Image link copied to clipboard!");
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        console.error("Share failed:", err);
+        toast.error("Sharing not supported on this device");
+      }
+    }
+  };
+
+  const handleDeleteImageHistory = async (id: string) => {
+    try {
+      const { error } = await supabase.from('image_history').delete().eq('id', id);
+      if (error) throw error;
+      setImageHistory(prev => prev.filter(item => item.id !== id));
+      toast.success("Image removed from history");
+    } catch (error) {
+      console.error("Error deleting image:", error);
+      toast.error("Failed to delete image");
     }
   };
 
@@ -821,10 +901,11 @@ const Index = () => {
             </div>
 
             <Tabs defaultValue="voice" className="mt-2">
-              <TabsList className="grid w-full grid-cols-3 glass-card">
-                <TabsTrigger value="voice" className="transition-all text-xs">Voice</TabsTrigger>
-                <TabsTrigger value="ai-chat" className="transition-all text-xs">AI Chat</TabsTrigger>
-                <TabsTrigger value="transcribe" className="transition-all text-xs">Transcribe</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-4 glass-card">
+                <TabsTrigger value="voice" className="transition-all text-[10px]">Voice</TabsTrigger>
+                <TabsTrigger value="ai-chat" className="transition-all text-[10px]">Chat</TabsTrigger>
+                <TabsTrigger value="transcribe" className="transition-all text-[10px]">STT</TabsTrigger>
+                <TabsTrigger value="images" className="transition-all text-[10px]">Images</TabsTrigger>
               </TabsList>
               <ScrollArea className="h-[calc(100vh-220px)] mt-6">
                 <TabsContent value="voice" className="mt-0">
@@ -922,6 +1003,50 @@ const Index = () => {
                     </div>
                   )}
                 </TabsContent>
+                <TabsContent value="images" className="mt-0">
+                  {isLoadingImageHistory ? (
+                    <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+                      <p className="text-sm text-muted-foreground">Loading images...</p>
+                    </div>
+                  ) : imageHistory.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+                      <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                        <ImageIcon className="w-8 h-8 text-muted-foreground/50" />
+                      </div>
+                      <p className="text-center text-muted-foreground font-medium">No images yet</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Your AI-generated images will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 pr-4">
+                      {imageHistory.map((item) => (
+                        <div key={item.id} className="glass-card rounded-xl overflow-hidden hover:ring-2 ring-primary/40 transition-all animate-fade-in group relative">
+                          <img
+                            src={item.image_data}
+                            alt={item.prompt}
+                            className="w-full aspect-square object-cover cursor-pointer"
+                            onClick={() => setPreviewImageUrl(item.image_data)}
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20" onClick={() => setPreviewImageUrl(item.image_data)}>
+                              <ZoomIn className="w-4 h-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20" onClick={() => handleShareImage(item.image_data)}>
+                              <Share2 className="w-4 h-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-destructive/60" onClick={() => handleDeleteImageHistory(item.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="p-2">
+                            <p className="text-[10px] text-muted-foreground line-clamp-2">{item.prompt}</p>
+                            <p className="text-[9px] text-muted-foreground/50 mt-1">{new Date(item.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
               </ScrollArea>
             </Tabs>
           </SheetContent>
@@ -946,9 +1071,9 @@ const Index = () => {
 
           <Tabs defaultValue="tts" className="w-full">
             <TabsList className="flex w-full mb-6 overflow-x-auto gap-1">
-              <TabsTrigger value="tts" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3">🎙️ <span className="hidden sm:inline">Text-to-</span>TTS</TabsTrigger>
-              <TabsTrigger value="stt" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3">🎤 <span className="hidden sm:inline">Speech-to-</span>STT</TabsTrigger>
-              <TabsTrigger value="image" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3">🎨 <span className="hidden sm:inline">AI </span>Images</TabsTrigger>
+              <TabsTrigger value="tts" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden">🎙️ TTS</span><span className="hidden sm:inline">🎙️ Text-to-Speech</span></TabsTrigger>
+              <TabsTrigger value="stt" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden">🎤 STT</span><span className="hidden sm:inline">🎤 Speech-to-Text</span></TabsTrigger>
+              <TabsTrigger value="image" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden">🎨 Images</span><span className="hidden sm:inline">🎨 AI Images</span></TabsTrigger>
             </TabsList>
             
             <TabsContent value="tts" className="mt-0">
@@ -1513,6 +1638,15 @@ const Index = () => {
                         >
                           <Download className="w-4 h-4" />
                           Download
+                        </Button>
+                        <Button
+                          onClick={() => generatedImage && handleShareImage(generatedImage)}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full gap-2 hover-scale"
+                        >
+                          <Share2 className="w-4 h-4" />
+                          Share
                         </Button>
                         <Button
                           onClick={() => { setGeneratedImage(null); setImagePrompt(""); }}

@@ -731,7 +731,6 @@ const Index = () => {
   const handleDownloadGeneratedImage = () => {
     if (!generatedImage) return;
     try {
-      // Convert base64 data URL to Blob to bypass browser security restrictions
       const [meta, base64Data] = generatedImage.split(",");
       const mimeType = meta.match(/:(.*?);/)?.[1] || "image/png";
       const byteString = atob(base64Data);
@@ -741,17 +740,32 @@ const Index = () => {
       }
       const blob = new Blob([byteArray], { type: mimeType });
       const blobUrl = URL.createObjectURL(blob);
+
+      // Try anchor download first
       const a = document.createElement("a");
       a.href = blobUrl;
       a.download = `ai-image-${Date.now()}.png`;
+      a.style.display = "none";
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-      toast.success("Download started!");
+
+      // Fallback: open in new tab so user can long-press to save on mobile
+      setTimeout(() => {
+        document.body.removeChild(a);
+        // On Android/mobile, anchor download often fails silently — open blob URL in new tab
+        if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+          window.open(blobUrl, "_blank");
+          toast.success("Image opened — long-press to save to gallery");
+        } else {
+          toast.success("Download started!");
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        }
+      }, 300);
     } catch (err) {
       console.error("Download failed:", err);
-      toast.error("Download failed. Please try right-clicking the image.");
+      // Ultimate fallback: open data URL directly
+      window.open(generatedImage, "_blank");
+      toast.info("Image opened in new tab — long-press to save");
     }
   };
 
@@ -931,10 +945,10 @@ const Index = () => {
           </div>
 
           <Tabs defaultValue="tts" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="tts" className="text-xs sm:text-sm">🎙️ Text-to-Speech</TabsTrigger>
-              <TabsTrigger value="stt" className="text-xs sm:text-sm">🎤 Speech-to-Text</TabsTrigger>
-              <TabsTrigger value="image" className="text-xs sm:text-sm">🎨 AI Images</TabsTrigger>
+            <TabsList className="flex w-full mb-6 overflow-x-auto gap-1">
+              <TabsTrigger value="tts" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3">🎙️ <span className="hidden sm:inline">Text-to-</span>TTS</TabsTrigger>
+              <TabsTrigger value="stt" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3">🎤 <span className="hidden sm:inline">Speech-to-</span>STT</TabsTrigger>
+              <TabsTrigger value="image" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3">🎨 <span className="hidden sm:inline">AI </span>Images</TabsTrigger>
             </TabsList>
             
             <TabsContent value="tts" className="mt-0">
@@ -1552,13 +1566,22 @@ const Index = () => {
                       const a = document.createElement("a");
                       a.href = blobUrl;
                       a.download = `ai-image-${Date.now()}.png`;
+                      a.style.display = "none";
                       document.body.appendChild(a);
                       a.click();
-                      document.body.removeChild(a);
-                      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-                      toast.success("Download started!");
+                      setTimeout(() => {
+                        document.body.removeChild(a);
+                        if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                          window.open(blobUrl, "_blank");
+                          toast.success("Image opened — long-press to save to gallery");
+                        } else {
+                          toast.success("Download started!");
+                          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                        }
+                      }, 300);
                     } catch {
-                      toast.error("Download failed. Try right-clicking the image.");
+                      window.open(previewImageUrl, "_blank");
+                      toast.info("Image opened in new tab — long-press to save");
                     }
                   }}
                 >

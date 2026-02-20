@@ -76,6 +76,30 @@ export type Database = {
         }
         Relationships: []
       }
+      image_history: {
+        Row: {
+          created_at: string
+          id: string
+          image_data: string
+          prompt: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_data: string
+          prompt: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_data?: string
+          prompt?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       voice_history: {
         Row: {
           audio_url: string

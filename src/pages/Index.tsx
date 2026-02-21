@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu, ImageIcon, ZoomIn, Sparkles, Wand2, Share2, Trash2 } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu, ImageIcon, ZoomIn, Sparkles, Wand2, Share2, Trash2, Pencil } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +89,10 @@ const Index = () => {
   // Image History State
   const [imageHistory, setImageHistory] = useState<Array<{ id: string; prompt: string; image_data: string; created_at: string }>>([]);
   const [isLoadingImageHistory, setIsLoadingImageHistory] = useState(false);
+
+  // Image Editing State
+  const [editPrompt, setEditPrompt] = useState("");
+  const [isEditingImage, setIsEditingImage] = useState(false);
 
   const maxChars = 5000;
   const charCount = text.length;
@@ -846,6 +850,45 @@ const Index = () => {
     } catch (error) {
       console.error("Error deleting image:", error);
       toast.error("Failed to delete image");
+    }
+  };
+
+  const handleEditImage = async () => {
+    if (!editPrompt.trim() || !generatedImage) return;
+    try {
+      setIsEditingImage(true);
+      toast.loading("Editing image...");
+
+      const { data, error } = await supabase.functions.invoke("edit-image", {
+        body: { prompt: editPrompt, imageUrl: generatedImage },
+      });
+
+      toast.dismiss();
+      if (error) throw error;
+
+      if (data?.image) {
+        setGeneratedImage(data.image);
+        setEditPrompt("");
+        toast.success("Image edited!");
+
+        // Save edited image to history
+        const { error: saveError } = await supabase
+          .from('image_history')
+          .insert({
+            prompt: `Edit: ${editPrompt}`,
+            image_data: data.image,
+            user_id: session?.user.id,
+          });
+        if (!saveError) loadImageHistory();
+      } else {
+        throw new Error("No image returned");
+      }
+    } catch (error) {
+      console.error("Image edit error:", error);
+      toast.dismiss();
+      toast.error("Failed to edit image. Please try again.");
+    } finally {
+      setIsEditingImage(false);
     }
   };
 
@@ -1649,13 +1692,45 @@ const Index = () => {
                           Share
                         </Button>
                         <Button
-                          onClick={() => { setGeneratedImage(null); setImagePrompt(""); }}
+                          onClick={() => { setGeneratedImage(null); setImagePrompt(""); setEditPrompt(""); }}
                           variant="ghost"
                           size="sm"
                           className="rounded-full gap-2 text-muted-foreground hover-scale"
                         >
                           Generate New
                         </Button>
+                      </div>
+
+                      {/* Image Edit / Refine Input */}
+                      <div className="space-y-2 pt-2 border-t border-border/30">
+                        <label className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
+                          <Pencil className="w-3 h-3" />
+                          Refine this image
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={editPrompt}
+                            onChange={(e) => setEditPrompt(e.target.value)}
+                            placeholder="e.g. Make it more colorful, add snow..."
+                            className="flex-1 rounded-lg border border-border/50 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            disabled={isEditingImage}
+                            onKeyDown={(e) => e.key === "Enter" && handleEditImage()}
+                          />
+                          <Button
+                            onClick={handleEditImage}
+                            disabled={isEditingImage || !editPrompt.trim()}
+                            size="sm"
+                            className="rounded-lg gap-1"
+                          >
+                            {isEditingImage ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Pencil className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/60">Describe how you'd like to modify the image</p>
                       </div>
                     </div>
                   )}

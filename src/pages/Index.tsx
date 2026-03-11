@@ -916,7 +916,43 @@ const Index = () => {
     }
   };
 
-  if (isAuthLoading) {
+  // PWA Install prompt
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      // Show banner if not already installed and not dismissed this session
+      if (!sessionStorage.getItem("pwa-banner-dismissed")) {
+        setShowInstallBanner(true);
+      }
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setIsPwaInstalled(true);
+    }
+
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handlePwaInstall = async () => {
+    if (!deferredPrompt) return;
+    await deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setIsPwaInstalled(true);
+      toast.success("App installed successfully!");
+    }
+    setDeferredPrompt(null);
+    setShowInstallBanner(false);
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    sessionStorage.setItem("pwa-banner-dismissed", "true");
+  };
+
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

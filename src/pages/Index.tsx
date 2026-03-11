@@ -969,6 +969,31 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
+      {/* PWA Install Banner */}
+      {showInstallBanner && !isPwaInstalled && (
+        <div className="fixed top-0 left-0 right-0 z-50 p-3 bg-primary text-primary-foreground animate-slide-in">
+          <div className="flex items-center justify-between max-w-xl mx-auto gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Smartphone className="w-5 h-5 shrink-0" />
+              <p className="text-sm font-medium truncate">Install AI Voice Studio for the best experience!</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="rounded-full text-xs h-8 px-3"
+                onClick={handlePwaInstall}
+              >
+                <Download className="w-3 h-3 mr-1" />
+                Install
+              </Button>
+              <button onClick={dismissInstallBanner} className="p-1 rounded-full hover:bg-primary-foreground/20 transition-smooth">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Menu Button with Voice & AI Chat History, Theme & Logout */}
       <div className="absolute top-4 left-4 z-20">
         <Sheet>

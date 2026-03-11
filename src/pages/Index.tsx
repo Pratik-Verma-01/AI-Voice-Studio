@@ -831,6 +831,7 @@ const Index = () => {
       // Ultimate fallback: open data URL directly
       window.open(generatedImage, "_blank");
       toast.info("Image opened in new tab — long-press to save");
+    }
   };
 
   const handleShareImage = async (imageData: string) => {

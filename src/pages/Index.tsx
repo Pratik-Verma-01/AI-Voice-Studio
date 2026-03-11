@@ -802,27 +802,33 @@ const Index = () => {
     return urlData.publicUrl;
   };
 
+  const handleCopyImage = async (imageData?: string) => {
+    const data = imageData || generatedImage;
+    if (!data) return;
+    try {
+      const blob = base64ToBlob(data);
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      toast.success("Image copied! Now paste it anywhere");
+    } catch (err) {
+      // Fallback: copy the shareable link instead
+      try {
+        toast.loading("Creating link...");
+        const publicUrl = await uploadImageAndGetUrl(data);
+        toast.dismiss();
+        await navigator.clipboard.writeText(publicUrl);
+        toast.success("Image link copied to clipboard!");
+      } catch (e) {
+        toast.dismiss();
+        toast.error("Could not copy image");
+      }
+    }
+  };
+
   const handleDownloadGeneratedImage = async () => {
     if (!generatedImage) return;
     try {
-      const blob = base64ToBlob(generatedImage);
-      const fileName = `ai-image-${Date.now()}.png`;
-
-      // Try Web Share API with file first (best for mobile)
-      if (navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: 'image/png' });
-        const shareData = { files: [file] };
-        if (navigator.canShare(shareData)) {
-          try {
-            await navigator.share(shareData);
-            toast.success("Image shared/saved successfully!");
-            return;
-          } catch (shareErr: any) {
-            if (shareErr.name === 'AbortError') return;
-          }
-        }
-      }
-
       // Upload to storage and open the real URL in browser for download
       toast.loading("Preparing download...");
       const publicUrl = await uploadImageAndGetUrl(generatedImage);
@@ -833,31 +839,13 @@ const Index = () => {
     } catch (err) {
       console.error("Download failed:", err);
       toast.dismiss();
-      window.open(generatedImage, "_blank");
-      toast.info("Image opened in new tab — long-press to save");
+      toast.error("Download failed");
     }
   };
 
   const handleShareImage = async (imageData: string) => {
     try {
-      const blob = base64ToBlob(imageData);
-      const file = new File([blob], `ai-image-${Date.now()}.png`, { type: 'image/png' });
-
-      // Try sharing the actual file first
-      if (navigator.share && navigator.canShare) {
-        const shareData = { files: [file] };
-        if (navigator.canShare(shareData)) {
-          try {
-            await navigator.share(shareData);
-            toast.success("Shared successfully!");
-            return;
-          } catch (err: any) {
-            if (err.name === 'AbortError') return;
-          }
-        }
-      }
-
-      // Fallback: upload to storage and share a proper link
+      // Always upload first to get a proper shareable URL
       toast.loading("Creating shareable link...");
       const publicUrl = await uploadImageAndGetUrl(imageData);
       toast.dismiss();
@@ -1778,12 +1766,12 @@ const Index = () => {
                           Preview
                         </Button>
                         <Button
-                          onClick={handleDownloadGeneratedImage}
+                          onClick={() => handleCopyImage()}
                           size="sm"
                           className="rounded-full gap-2 hover-scale bg-primary"
                         >
-                          <Download className="w-4 h-4" />
-                          Download
+                          <Copy className="w-4 h-4" />
+                          Copy Image
                         </Button>
                         <Button
                           onClick={() => generatedImage && handleShareImage(generatedImage)}

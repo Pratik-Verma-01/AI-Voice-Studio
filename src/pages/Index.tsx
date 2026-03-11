@@ -94,6 +94,11 @@ const Index = () => {
   const [editPrompt, setEditPrompt] = useState("");
   const [isEditingImage, setIsEditingImage] = useState(false);
 
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
+
   const maxChars = 5000;
   const charCount = text.length;
 

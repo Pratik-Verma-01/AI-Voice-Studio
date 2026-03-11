@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import FloatingChat from "@/components/FloatingChat";
@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu, ImageIcon, ZoomIn, Sparkles, Wand2, Share2, Trash2, Pencil } from "lucide-react";
+import { Play, Pause, Square, Download, Copy, Mic, Volume2, Gauge, Globe, User, History, Loader2, Upload, FileAudio, LogOut, Menu, ImageIcon, ZoomIn, Sparkles, Wand2, Share2, Trash2, Pencil, X, Smartphone } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,6 +93,11 @@ const Index = () => {
   // Image Editing State
   const [editPrompt, setEditPrompt] = useState("");
   const [isEditingImage, setIsEditingImage] = useState(false);
+
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
 
   const maxChars = 5000;
   const charCount = text.length;
@@ -769,7 +774,7 @@ const Index = () => {
     }
   };
 
-  const handleDownloadGeneratedImage = () => {
+  const handleDownloadGeneratedImage = async () => {
     if (!generatedImage) return;
     try {
       const [meta, base64Data] = generatedImage.split(",");
@@ -780,28 +785,47 @@ const Index = () => {
         byteArray[i] = byteString.charCodeAt(i);
       }
       const blob = new Blob([byteArray], { type: mimeType });
+      const fileName = `ai-image-${Date.now()}.png`;
+
+      // Try Web Share API with file (works best in WebViews and mobile)
+      if (navigator.share && navigator.canShare) {
+        const file = new File([blob], fileName, { type: mimeType });
+        const shareData = { files: [file] };
+        if (navigator.canShare(shareData)) {
+          try {
+            await navigator.share(shareData);
+            toast.success("Image shared/saved successfully!");
+            return;
+          } catch (shareErr: any) {
+            if (shareErr.name === 'AbortError') return;
+            // Fall through to other methods
+          }
+        }
+      }
+
       const blobUrl = URL.createObjectURL(blob);
 
-      // Try anchor download first
+      // Try anchor download
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = `ai-image-${Date.now()}.png`;
+      a.download = fileName;
       a.style.display = "none";
       document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
 
-      // Fallback: open in new tab so user can long-press to save on mobile
-      setTimeout(() => {
-        document.body.removeChild(a);
-        // On Android/mobile, anchor download often fails silently — open blob URL in new tab
-        if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-          window.open(blobUrl, "_blank");
-          toast.success("Image opened — long-press to save to gallery");
-        } else {
-          toast.success("Download started!");
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        }
-      }, 300);
+      // On mobile/WebView, anchor download often fails — open blob URL directly
+      const isMobileOrWebView = /Android|iPhone|iPad|wv|WebView/i.test(navigator.userAgent);
+      if (isMobileOrWebView) {
+        // Small delay to let anchor attempt finish
+        setTimeout(() => {
+          window.location.href = blobUrl;
+          toast.success("Image downloading — check your downloads folder");
+        }, 500);
+      } else {
+        toast.success("Download started!");
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      }
     } catch (err) {
       console.error("Download failed:", err);
       // Ultimate fallback: open data URL directly
@@ -892,6 +916,43 @@ const Index = () => {
     }
   };
 
+  // PWA Install prompt
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      // Show banner if not already installed and not dismissed this session
+      if (!sessionStorage.getItem("pwa-banner-dismissed")) {
+        setShowInstallBanner(true);
+      }
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setIsPwaInstalled(true);
+    }
+
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handlePwaInstall = async () => {
+    if (!deferredPrompt) return;
+    await deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setIsPwaInstalled(true);
+      toast.success("App installed successfully!");
+    }
+    setDeferredPrompt(null);
+    setShowInstallBanner(false);
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    sessionStorage.setItem("pwa-banner-dismissed", "true");
+  };
+
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -909,6 +970,31 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
+      {/* PWA Install Banner */}
+      {showInstallBanner && !isPwaInstalled && (
+        <div className="fixed top-0 left-0 right-0 z-50 p-3 bg-primary text-primary-foreground animate-slide-in">
+          <div className="flex items-center justify-between max-w-xl mx-auto gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Smartphone className="w-5 h-5 shrink-0" />
+              <p className="text-sm font-medium truncate">Install AI Voice Studio for the best experience!</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="rounded-full text-xs h-8 px-3"
+                onClick={handlePwaInstall}
+              >
+                <Download className="w-3 h-3 mr-1" />
+                Install
+              </Button>
+              <button onClick={dismissInstallBanner} className="p-1 rounded-full hover:bg-primary-foreground/20 transition-smooth">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Menu Button with Voice & AI Chat History, Theme & Logout */}
       <div className="absolute top-4 left-4 z-20">
         <Sheet>

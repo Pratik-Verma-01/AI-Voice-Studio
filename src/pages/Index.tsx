@@ -774,7 +774,7 @@ const Index = () => {
     }
   };
 
-  const handleDownloadGeneratedImage = () => {
+  const handleDownloadGeneratedImage = async () => {
     if (!generatedImage) return;
     try {
       const [meta, base64Data] = generatedImage.split(",");
@@ -785,34 +785,52 @@ const Index = () => {
         byteArray[i] = byteString.charCodeAt(i);
       }
       const blob = new Blob([byteArray], { type: mimeType });
+      const fileName = `ai-image-${Date.now()}.png`;
+
+      // Try Web Share API with file (works best in WebViews and mobile)
+      if (navigator.share && navigator.canShare) {
+        const file = new File([blob], fileName, { type: mimeType });
+        const shareData = { files: [file] };
+        if (navigator.canShare(shareData)) {
+          try {
+            await navigator.share(shareData);
+            toast.success("Image shared/saved successfully!");
+            return;
+          } catch (shareErr: any) {
+            if (shareErr.name === 'AbortError') return;
+            // Fall through to other methods
+          }
+        }
+      }
+
       const blobUrl = URL.createObjectURL(blob);
 
-      // Try anchor download first
+      // Try anchor download
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = `ai-image-${Date.now()}.png`;
+      a.download = fileName;
       a.style.display = "none";
       document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
 
-      // Fallback: open in new tab so user can long-press to save on mobile
-      setTimeout(() => {
-        document.body.removeChild(a);
-        // On Android/mobile, anchor download often fails silently — open blob URL in new tab
-        if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-          window.open(blobUrl, "_blank");
-          toast.success("Image opened — long-press to save to gallery");
-        } else {
-          toast.success("Download started!");
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        }
-      }, 300);
+      // On mobile/WebView, anchor download often fails — open blob URL directly
+      const isMobileOrWebView = /Android|iPhone|iPad|wv|WebView/i.test(navigator.userAgent);
+      if (isMobileOrWebView) {
+        // Small delay to let anchor attempt finish
+        setTimeout(() => {
+          window.location.href = blobUrl;
+          toast.success("Image downloading — check your downloads folder");
+        }, 500);
+      } else {
+        toast.success("Download started!");
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      }
     } catch (err) {
       console.error("Download failed:", err);
       // Ultimate fallback: open data URL directly
       window.open(generatedImage, "_blank");
       toast.info("Image opened in new tab — long-press to save");
-    }
   };
 
   const handleShareImage = async (imageData: string) => {

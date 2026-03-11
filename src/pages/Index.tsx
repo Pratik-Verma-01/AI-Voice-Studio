@@ -1766,12 +1766,12 @@ const Index = () => {
                           Preview
                         </Button>
                         <Button
-                          onClick={handleDownloadGeneratedImage}
+                          onClick={() => handleCopyImage()}
                           size="sm"
                           className="rounded-full gap-2 hover-scale bg-primary"
                         >
-                          <Download className="w-4 h-4" />
-                          Download
+                          <Copy className="w-4 h-4" />
+                          Copy Image
                         </Button>
                         <Button
                           onClick={() => generatedImage && handleShareImage(generatedImage)}

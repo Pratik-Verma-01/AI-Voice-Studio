@@ -774,22 +774,43 @@ const Index = () => {
     }
   };
 
+  const base64ToBlob = (dataUrl: string) => {
+    const [meta, base64Data] = dataUrl.split(",");
+    const mimeType = meta.match(/:(.*?);/)?.[1] || "image/png";
+    const byteString = atob(base64Data);
+    const byteArray = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) {
+      byteArray[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([byteArray], { type: mimeType });
+  };
+
+  const uploadImageAndGetUrl = async (imageData: string): Promise<string> => {
+    const blob = base64ToBlob(imageData);
+    const fileName = `${session?.user.id}/${Date.now()}.png`;
+    
+    const { error } = await supabase.storage
+      .from('shared-images')
+      .upload(fileName, blob, { contentType: 'image/png' });
+    
+    if (error) throw error;
+    
+    const { data: urlData } = supabase.storage
+      .from('shared-images')
+      .getPublicUrl(fileName);
+    
+    return urlData.publicUrl;
+  };
+
   const handleDownloadGeneratedImage = async () => {
     if (!generatedImage) return;
     try {
-      const [meta, base64Data] = generatedImage.split(",");
-      const mimeType = meta.match(/:(.*?);/)?.[1] || "image/png";
-      const byteString = atob(base64Data);
-      const byteArray = new Uint8Array(byteString.length);
-      for (let i = 0; i < byteString.length; i++) {
-        byteArray[i] = byteString.charCodeAt(i);
-      }
-      const blob = new Blob([byteArray], { type: mimeType });
+      const blob = base64ToBlob(generatedImage);
       const fileName = `ai-image-${Date.now()}.png`;
 
-      // Try Web Share API with file (works best in WebViews and mobile)
+      // Try Web Share API with file first (best for mobile)
       if (navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: mimeType });
+        const file = new File([blob], fileName, { type: 'image/png' });
         const shareData = { files: [file] };
         if (navigator.canShare(shareData)) {
           try {
@@ -798,37 +819,20 @@ const Index = () => {
             return;
           } catch (shareErr: any) {
             if (shareErr.name === 'AbortError') return;
-            // Fall through to other methods
           }
         }
       }
 
-      const blobUrl = URL.createObjectURL(blob);
-
-      // Try anchor download
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = fileName;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // On mobile/WebView, anchor download often fails — open blob URL directly
-      const isMobileOrWebView = /Android|iPhone|iPad|wv|WebView/i.test(navigator.userAgent);
-      if (isMobileOrWebView) {
-        // Small delay to let anchor attempt finish
-        setTimeout(() => {
-          window.location.href = blobUrl;
-          toast.success("Image downloading — check your downloads folder");
-        }, 500);
-      } else {
-        toast.success("Download started!");
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-      }
+      // Upload to storage and open the real URL in browser for download
+      toast.loading("Preparing download...");
+      const publicUrl = await uploadImageAndGetUrl(generatedImage);
+      toast.dismiss();
+      
+      window.open(publicUrl, '_blank');
+      toast.success("Image opened — save it from your browser");
     } catch (err) {
       console.error("Download failed:", err);
-      // Ultimate fallback: open data URL directly
+      toast.dismiss();
       window.open(generatedImage, "_blank");
       toast.info("Image opened in new tab — long-press to save");
     }
@@ -836,31 +840,44 @@ const Index = () => {
 
   const handleShareImage = async (imageData: string) => {
     try {
-      if (navigator.share) {
-        // Convert base64 to blob for sharing
-        const [meta, b64] = imageData.split(",");
-        const mime = meta.match(/:(.*?);/)?.[1] || "image/png";
-        const bytes = atob(b64);
-        const arr = new Uint8Array(bytes.length);
-        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-        const blob = new Blob([arr], { type: mime });
-        const file = new File([blob], `ai-image-${Date.now()}.png`, { type: mime });
+      const blob = base64ToBlob(imageData);
+      const file = new File([blob], `ai-image-${Date.now()}.png`, { type: 'image/png' });
 
+      // Try sharing the actual file first
+      if (navigator.share && navigator.canShare) {
+        const shareData = { files: [file] };
+        if (navigator.canShare(shareData)) {
+          try {
+            await navigator.share(shareData);
+            toast.success("Shared successfully!");
+            return;
+          } catch (err: any) {
+            if (err.name === 'AbortError') return;
+          }
+        }
+      }
+
+      // Fallback: upload to storage and share a proper link
+      toast.loading("Creating shareable link...");
+      const publicUrl = await uploadImageAndGetUrl(imageData);
+      toast.dismiss();
+
+      if (navigator.share) {
         await navigator.share({
           title: "AI Generated Image",
           text: "Check out this AI-generated image!",
-          files: [file],
+          url: publicUrl,
         });
         toast.success("Shared successfully!");
       } else {
-        // Fallback: copy image data URL to clipboard
-        await navigator.clipboard.writeText(imageData);
-        toast.success("Image link copied to clipboard!");
+        await navigator.clipboard.writeText(publicUrl);
+        toast.success("Shareable link copied to clipboard!");
       }
     } catch (err: any) {
+      toast.dismiss();
       if (err.name !== "AbortError") {
         console.error("Share failed:", err);
-        toast.error("Sharing not supported on this device");
+        toast.error("Failed to share image");
       }
     }
   };

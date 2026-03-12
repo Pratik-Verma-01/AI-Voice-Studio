@@ -255,9 +255,6 @@ const Auth = () => {
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Create Account
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">
-                  You'll receive a verification email after signing up.
-                </p>
               </form>
             </TabsContent>
           </Tabs>

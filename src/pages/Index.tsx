@@ -1834,7 +1834,7 @@ const Index = () => {
         {/* Footer */}
         <footer className="text-center mt-8 text-sm text-muted-foreground">
           <p className="flex items-center justify-center gap-2">
-            Developed with <span className="text-destructive animate-pulse">❤️</span> by <span className="font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Code-With-Pratik</span>
+            Developed with <Sparkles className="w-4 h-4 inline text-destructive animate-pulse" /> by <span className="font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Code-With-Pratik</span>
           </p>
         </footer>
       </main>

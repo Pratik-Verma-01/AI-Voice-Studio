@@ -1205,9 +1205,9 @@ const Index = () => {
 
           <Tabs defaultValue="tts" className="w-full">
             <TabsList className="flex w-full mb-6 overflow-x-auto gap-1">
-              <TabsTrigger value="tts" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden">🎙️ TTS</span><span className="hidden sm:inline">🎙️ Text-to-Speech</span></TabsTrigger>
-              <TabsTrigger value="stt" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden">🎤 STT</span><span className="hidden sm:inline">🎤 Speech-to-Text</span></TabsTrigger>
-              <TabsTrigger value="image" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden">🎨 Images</span><span className="hidden sm:inline">🎨 AI Images</span></TabsTrigger>
+              <TabsTrigger value="tts" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden"><Mic className="w-3 h-3 inline mr-1" />TTS</span><span className="hidden sm:inline"><Mic className="w-3.5 h-3.5 inline mr-1" />Text-to-Speech</span></TabsTrigger>
+              <TabsTrigger value="stt" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden"><FileAudio className="w-3 h-3 inline mr-1" />STT</span><span className="hidden sm:inline"><FileAudio className="w-3.5 h-3.5 inline mr-1" />Speech-to-Text</span></TabsTrigger>
+              <TabsTrigger value="image" className="flex-1 min-w-0 text-[11px] sm:text-sm px-2 sm:px-3"><span className="sm:hidden"><ImageIcon className="w-3 h-3 inline mr-1" />Images</span><span className="hidden sm:inline"><ImageIcon className="w-3.5 h-3.5 inline mr-1" />AI Images</span></TabsTrigger>
             </TabsList>
             
             <TabsContent value="tts" className="mt-0">

@@ -974,7 +974,7 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative z-10 overflow-hidden">
       {/* PWA Install Banner */}
       {showInstallBanner && !isPwaInstalled && (
         <div className="fixed top-0 left-0 right-0 z-50 p-3 bg-primary text-primary-foreground animate-slide-in">

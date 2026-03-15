@@ -6,185 +6,193 @@ interface Ripple {
   radius: number;
   maxRadius: number;
   alpha: number;
-  color: string;
+  hue: number;
 }
 
-interface Blob {
+interface FBlob {
   x: number;
   y: number;
   vx: number;
   vy: number;
   radius: number;
-  color: string;
+  hue: number;
+  saturation: number;
+  lightness: number;
+  opacity: number;
   phase: number;
   speed: number;
 }
 
+const BLOB_CONFIGS = [
+  { hue: 270, sat: 80, light: 60, darkLight: 65, op: 0.09, darkOp: 0.1 },
+  { hue: 200, sat: 70, light: 60, darkLight: 55, op: 0.07, darkOp: 0.08 },
+  { hue: 280, sat: 90, light: 65, darkLight: 70, op: 0.08, darkOp: 0.09 },
+  { hue: 240, sat: 60, light: 55, darkLight: 50, op: 0.05, darkOp: 0.07 },
+  { hue: 310, sat: 70, light: 58, darkLight: 62, op: 0.06, darkOp: 0.07 },
+];
+
 const FluidBackground = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ripples = useRef<Ripple[]>([]);
-  const blobs = useRef<Blob[]>([]);
+  const blobs = useRef<FBlob[]>([]);
   const animRef = useRef<number>(0);
-  const isDark = useRef(false);
 
-  const getColors = useCallback(() => {
-    const root = getComputedStyle(document.documentElement);
-    const dark = document.documentElement.classList.contains("dark");
-    isDark.current = dark;
-
-    if (dark) {
-      return {
-        blobs: [
-          "hsla(270, 80%, 65%, 0.08)",
-          "hsla(200, 70%, 55%, 0.06)",
-          "hsla(280, 90%, 70%, 0.07)",
-          "hsla(240, 60%, 50%, 0.05)",
-        ],
-        ripple: [
-          "hsla(270, 80%, 65%, 0.25)",
-          "hsla(200, 70%, 55%, 0.2)",
-          "hsla(280, 90%, 70%, 0.22)",
-        ],
-      };
-    }
-    return {
-      blobs: [
-        "hsla(270, 80%, 60%, 0.07)",
-        "hsla(200, 70%, 60%, 0.05)",
-        "hsla(280, 90%, 65%, 0.06)",
-        "hsla(240, 60%, 55%, 0.04)",
-      ],
-      ripple: [
-        "hsla(270, 80%, 60%, 0.2)",
-        "hsla(200, 70%, 60%, 0.18)",
-        "hsla(280, 90%, 65%, 0.2)",
-      ],
-    };
-  }, []);
+  const isDark = () => document.documentElement.classList.contains("dark");
 
   const initBlobs = useCallback((w: number, h: number) => {
-    const colors = getColors();
-    blobs.current = colors.blobs.map((color, i) => ({
+    const dark = isDark();
+    blobs.current = BLOB_CONFIGS.map((cfg, i) => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      radius: Math.min(w, h) * (0.15 + Math.random() * 0.15),
-      color,
-      phase: (i * Math.PI * 2) / colors.blobs.length,
-      speed: 0.3 + Math.random() * 0.4,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: (Math.random() - 0.5) * 0.5,
+      radius: Math.min(w, h) * (0.18 + Math.random() * 0.14),
+      hue: cfg.hue,
+      saturation: cfg.sat,
+      lightness: dark ? cfg.darkLight : cfg.light,
+      opacity: dark ? cfg.darkOp : cfg.op,
+      phase: (i * Math.PI * 2) / BLOB_CONFIGS.length,
+      speed: 0.3 + Math.random() * 0.3,
     }));
-  }, [getColors]);
+  }, []);
 
   const addRipple = useCallback((x: number, y: number) => {
-    const colors = getColors();
-    const color = colors.ripple[Math.floor(Math.random() * colors.ripple.length)];
+    const hues = [270, 200, 280, 310];
     ripples.current.push({
       x, y,
       radius: 0,
-      maxRadius: 150 + Math.random() * 100,
+      maxRadius: 200 + Math.random() * 150,
       alpha: 1,
-      color,
+      hue: hues[Math.floor(Math.random() * hues.length)],
     });
-  }, [getColors]);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      if (blobs.current.length === 0) initBlobs(canvas.width, canvas.height);
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = window.innerWidth + "px";
+      canvas.style.height = window.innerHeight + "px";
+      ctx.scale(dpr, dpr);
+      if (blobs.current.length === 0) initBlobs(window.innerWidth, window.innerHeight);
     };
     resize();
     window.addEventListener("resize", resize);
 
-    const handleInteraction = (e: MouseEvent | TouchEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const touches = "touches" in e ? e.touches : [e];
-      for (let i = 0; i < touches.length; i++) {
-        const t = touches[i];
-        addRipple(t.clientX - rect.left, t.clientY - rect.top);
+    // Listen on document so touches pass through canvas (pointer-events: none)
+    const handleTouch = (e: TouchEvent) => {
+      for (let i = 0; i < e.touches.length; i++) {
+        addRipple(e.touches[i].clientX, e.touches[i].clientY);
       }
     };
+    const handleMouse = (e: MouseEvent) => {
+      addRipple(e.clientX, e.clientY);
+    };
+    const handleMouseMove = (e: MouseEvent) => {
+      if (e.buttons === 1) addRipple(e.clientX, e.clientY);
+    };
 
-    canvas.addEventListener("mousedown", handleInteraction);
-    canvas.addEventListener("mousemove", (e) => {
-      if (e.buttons === 1) handleInteraction(e);
-    });
-    canvas.addEventListener("touchstart", handleInteraction, { passive: true });
-    canvas.addEventListener("touchmove", handleInteraction, { passive: true });
+    document.addEventListener("touchstart", handleTouch, { passive: true });
+    document.addEventListener("touchmove", handleTouch, { passive: true });
+    document.addEventListener("mousedown", handleMouse);
+    document.addEventListener("mousemove", handleMouseMove);
 
-    // Watch theme changes
+    // Theme change watcher
     const observer = new MutationObserver(() => {
-      const colors = getColors();
+      const dark = isDark();
       blobs.current.forEach((b, i) => {
-        b.color = colors.blobs[i % colors.blobs.length];
+        const cfg = BLOB_CONFIGS[i % BLOB_CONFIGS.length];
+        b.lightness = dark ? cfg.darkLight : cfg.light;
+        b.opacity = dark ? cfg.darkOp : cfg.op;
       });
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
     let time = 0;
-    const animate = () => {
-      time += 0.01;
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
+    const w = () => window.innerWidth;
+    const h = () => window.innerHeight;
 
-      // Draw blobs
+    const animate = () => {
+      time += 0.008;
+      const cw = w();
+      const ch = h();
+      ctx.clearRect(0, 0, cw, ch);
+
+      // Draw blobs with soft radial gradients
       for (const blob of blobs.current) {
         blob.x += blob.vx * blob.speed;
         blob.y += blob.vy * blob.speed;
 
-        // Organic wobble
-        const wobbleX = Math.sin(time * blob.speed + blob.phase) * 30;
-        const wobbleY = Math.cos(time * blob.speed * 0.8 + blob.phase) * 25;
+        const wobbleX = Math.sin(time * blob.speed * 1.5 + blob.phase) * 40;
+        const wobbleY = Math.cos(time * blob.speed * 1.2 + blob.phase) * 35;
 
-        // Bounce
-        if (blob.x < -blob.radius) blob.vx = Math.abs(blob.vx);
-        if (blob.x > w + blob.radius) blob.vx = -Math.abs(blob.vx);
-        if (blob.y < -blob.radius) blob.vy = Math.abs(blob.vy);
-        if (blob.y > h + blob.radius) blob.vy = -Math.abs(blob.vy);
+        if (blob.x < -blob.radius * 0.5) blob.vx = Math.abs(blob.vx);
+        if (blob.x > cw + blob.radius * 0.5) blob.vx = -Math.abs(blob.vx);
+        if (blob.y < -blob.radius * 0.5) blob.vy = Math.abs(blob.vy);
+        if (blob.y > ch + blob.radius * 0.5) blob.vy = -Math.abs(blob.vy);
 
-        const r = blob.radius + Math.sin(time * 2 + blob.phase) * 15;
-        const gradient = ctx.createRadialGradient(
-          blob.x + wobbleX, blob.y + wobbleY, 0,
-          blob.x + wobbleX, blob.y + wobbleY, r
-        );
-        gradient.addColorStop(0, blob.color);
+        const r = blob.radius + Math.sin(time * 2.5 + blob.phase) * 20;
+        const bx = blob.x + wobbleX;
+        const by = blob.y + wobbleY;
+
+        const gradient = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+        gradient.addColorStop(0, `hsla(${blob.hue}, ${blob.saturation}%, ${blob.lightness}%, ${blob.opacity})`);
+        gradient.addColorStop(0.6, `hsla(${blob.hue}, ${blob.saturation}%, ${blob.lightness}%, ${blob.opacity * 0.4})`);
         gradient.addColorStop(1, "transparent");
 
         ctx.beginPath();
-        ctx.arc(blob.x + wobbleX, blob.y + wobbleY, r, 0, Math.PI * 2);
+        ctx.arc(bx, by, r, 0, Math.PI * 2);
         ctx.fillStyle = gradient;
         ctx.fill();
       }
 
-      // Draw ripples
+      // Draw ripples — fast expanding, visible
       for (let i = ripples.current.length - 1; i >= 0; i--) {
         const rip = ripples.current[i];
-        rip.radius += 3;
-        rip.alpha *= 0.97;
+        rip.radius += 5;
+        rip.alpha *= 0.955;
 
         if (rip.alpha < 0.01 || rip.radius > rip.maxRadius) {
           ripples.current.splice(i, 1);
           continue;
         }
 
+        const dark = isDark();
+        const baseLightness = dark ? 65 : 60;
+        const baseAlpha = dark ? 0.35 : 0.25;
+
+        // Outer ring
         ctx.beginPath();
         ctx.arc(rip.x, rip.y, rip.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = rip.color.replace(/[\d.]+\)$/, `${rip.alpha * 0.6})`);
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = `hsla(${rip.hue}, 80%, ${baseLightness}%, ${rip.alpha * baseAlpha})`;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
-        // Inner glow
+        // Inner ring
+        if (rip.radius > 20) {
+          ctx.beginPath();
+          ctx.arc(rip.x, rip.y, rip.radius * 0.6, 0, Math.PI * 2);
+          ctx.strokeStyle = `hsla(${rip.hue}, 85%, ${baseLightness + 5}%, ${rip.alpha * baseAlpha * 0.5})`;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+
+        // Radial fill glow
         const grad = ctx.createRadialGradient(rip.x, rip.y, 0, rip.x, rip.y, rip.radius);
-        grad.addColorStop(0, rip.color.replace(/[\d.]+\)$/, `${rip.alpha * 0.15})`));
+        grad.addColorStop(0, `hsla(${rip.hue}, 80%, ${baseLightness}%, ${rip.alpha * 0.12})`);
+        grad.addColorStop(0.5, `hsla(${rip.hue}, 80%, ${baseLightness}%, ${rip.alpha * 0.05})`);
         grad.addColorStop(1, "transparent");
         ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(rip.x, rip.y, rip.radius, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -196,14 +204,18 @@ const FluidBackground = () => {
     return () => {
       cancelAnimationFrame(animRef.current);
       window.removeEventListener("resize", resize);
+      document.removeEventListener("touchstart", handleTouch);
+      document.removeEventListener("touchmove", handleTouch);
+      document.removeEventListener("mousedown", handleMouse);
+      document.removeEventListener("mousemove", handleMouseMove);
       observer.disconnect();
     };
-  }, [addRipple, getColors, initBlobs]);
+  }, [addRipple, initBlobs]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 w-full h-full pointer-events-auto"
+      className="fixed inset-0 pointer-events-none"
       style={{ zIndex: 0 }}
     />
   );

@@ -1020,8 +1020,8 @@ const Index = () => {
             
             {/* Menu Options */}
             <div className="space-y-3 mb-6 pb-6 border-b">
-              <div className="glass-card p-3 rounded-xl">
-                <p className="text-sm font-medium mb-2 text-muted-foreground">Theme</p>
+              <div className="glass-card p-3 rounded-xl flex items-center justify-between">
+                <p className="text-sm font-medium text-muted-foreground">Theme</p>
                 <ThemeToggle />
               </div>
               <Button 

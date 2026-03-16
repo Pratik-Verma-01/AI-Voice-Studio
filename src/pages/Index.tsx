@@ -413,19 +413,36 @@ const Index = () => {
     toast.info("Stopped");
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!generatedAudioUrl) {
       toast.error("Please generate speech first");
       return;
     }
     
-    const a = document.createElement('a');
-    a.href = generatedAudioUrl;
-    a.download = 'speech.mp3';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success("Download started!");
+    if ((window as any).AndroidDownloader) {
+      try {
+        const response = await fetch(generatedAudioUrl);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          (window as any).AndroidDownloader.getBase64FromBlobData(base64);
+          toast.success("Download started!");
+        };
+        reader.readAsDataURL(blob);
+      } catch (err) {
+        console.error("Android download failed:", err);
+        toast.error("Download failed");
+      }
+    } else {
+      const a = document.createElement('a');
+      a.href = generatedAudioUrl;
+      a.download = 'speech.mp3';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success("Download started!");
+    }
   };
 
   const handleCopy = () => {

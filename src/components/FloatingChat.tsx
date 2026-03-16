@@ -222,6 +222,13 @@ const FloatingChat = ({ session, showHistory = false }: FloatingChatProps) => {
 
   const handleDownloadImage = (imageUrl: string) => {
     try {
+      if ((window as any).AndroidDownloader) {
+        const dataUri = imageUrl.startsWith("data:") ? imageUrl : `data:image/png;base64,${imageUrl}`;
+        (window as any).AndroidDownloader.getBase64FromBlobData(dataUri);
+        toast({ title: "Download started!", description: "Image is being downloaded." });
+        return;
+      }
+
       if (imageUrl.startsWith("data:")) {
         const [meta, base64Data] = imageUrl.split(",");
         const mimeType = meta.match(/:(.*?);/)?.[1] || "image/png";

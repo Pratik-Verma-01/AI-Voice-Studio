@@ -846,13 +846,19 @@ const Index = () => {
   const handleDownloadGeneratedImage = async () => {
     if (!generatedImage) return;
     try {
-      // Upload to storage and open the real URL in browser for download
-      toast.loading("Preparing download...");
-      const publicUrl = await uploadImageAndGetUrl(generatedImage);
-      toast.dismiss();
-      
-      window.open(publicUrl, '_blank');
-      toast.success("Image opened — save it from your browser");
+      if ((window as any).AndroidDownloader) {
+        const dataUri = generatedImage.startsWith("data:") 
+          ? generatedImage 
+          : `data:image/png;base64,${generatedImage}`;
+        (window as any).AndroidDownloader.getBase64FromBlobData(dataUri);
+        toast.success("Download started!");
+      } else {
+        toast.loading("Preparing download...");
+        const publicUrl = await uploadImageAndGetUrl(generatedImage);
+        toast.dismiss();
+        window.open(publicUrl, '_blank');
+        toast.success("Image opened — save it from your browser");
+      }
     } catch (err) {
       console.error("Download failed:", err);
       toast.dismiss();
